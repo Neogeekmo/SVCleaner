@@ -40,11 +40,11 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+      - uses: actions/setup-python@v7.0.0
         with:
           python-version: '3.14'
       - name: Require both publication tokens
@@ -62,7 +62,7 @@ jobs:
           done
           exit "$missing"
       - name: Build release package without uploading
-        uses: BigWigsMods/packager@90e603be6bcdeff99fb7061105a36b829fa70970 # v2
+        uses: BigWigsMods/packager@v2.6.1
         with:
           args: -d -e -l -u
           pandoc: 'false'
@@ -77,7 +77,7 @@ jobs:
       # -c preserves the already validated runtime folder. The packager archives
       # that same folder again and uploads it to all three destinations.
       - name: Publish the validated addon
-        uses: BigWigsMods/packager@90e603be6bcdeff99fb7061105a36b829fa70970 # v2
+        uses: BigWigsMods/packager@v2.6.1
         env:
           CF_API_KEY: ${{ secrets.CF_API_KEY }}
           WAGO_API_TOKEN: ${{ secrets.WAGO_API_TOKEN }}
@@ -99,7 +99,7 @@ jobs:
           gh release upload "$RELEASE_TAG" output/SVCleaner-Companion-*.zip output/SHA256SUMS.txt --clobber
       - name: Keep release archives even if an upload fails
         if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: release-packages
           path: |
