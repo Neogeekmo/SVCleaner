@@ -15,7 +15,6 @@
 <p align="center">
   <a href="#installation"><img src="readme/assets/install-button.svg" alt="Install the WoW addon" width="260"></a>
   <a href="#local-companion"><img src="readme/assets/companion-button.svg" alt="Start the local companion" width="260"></a>
-  <a href="docs/user-guide.md"><img src="readme/assets/guide-button.svg" alt="Read the user guide, available in French" width="260"></a>
 </p>
 
 <p align="center">
@@ -23,8 +22,7 @@
   <a href="#features"><strong>Features</strong></a> &nbsp;·&nbsp;
   <a href="#characters-and-comparison"><strong>Comparison</strong></a> &nbsp;·&nbsp;
   <a href="#compatibility-and-languages"><strong>Compatibility</strong></a> &nbsp;·&nbsp;
-  <a href="#commands"><strong>Commands</strong></a> &nbsp;·&nbsp;
-  <a href="#documentation-and-contributing"><strong>Documentation</strong></a>
+  <a href="#commands"><strong>Commands</strong></a>
 </p>
 
 ---
@@ -65,27 +63,11 @@
 
 ### WoW addon
 
-With Python **3.10 or newer**, close WoW and run this from the project folder:
-
-```powershell
-python companion/app.py --wow "D:\Jeux\World of Warcraft\_retail_" --install-addon
-```
-
-This creates `Interface/AddOns/SVCleaner` and generates a manifest from your installed addons. It refuses to overwrite an existing installation.
-
-For a manual installation, build the archive:
-
-```powershell
-python tools/package_addon.py
-```
-
-Extract the `SVCleaner` folder from `output/SVCleaner-0.1.0.zip` into `Interface/AddOns`, then enable the addon on the character selection screen. Open it with **`/svc`** or **`/svcleaner`**.
-
-After changing your installed addons, regenerate the manifest with the companion and copy it into the addon folder. The [user guide (French)](docs/user-guide.md#installer-laddon) explains the procedure.
+Install SV Cleaner directly from [CurseForge](https://www.curseforge.com/wow/addons/svcleaner/preview) or [Wago](https://addons.wago.io/addons/svcleaner).
 
 ### Local companion
 
-Double-click **`Lancer-SVCleaner.cmd`**, or specify your game client folder:
+With Python **3.10 or newer**, double-click **`Lancer-SVCleaner.cmd`**, or specify your game client folder:
 
 ```powershell
 python companion/app.py --wow "D:\Jeux\World of Warcraft\_retail_"
@@ -232,45 +214,6 @@ The addon follows WoW's language: **English, French, German, European and Latin 
 | `/svc` or `/svcleaner` | Open or close the in-game interface |
 | `python companion/app.py --wow "…"` | Open the companion for the specified game client folder |
 | `python companion/app.py --demo` | Try the companion with sample data |
-| `python companion/app.py --wow "…" --install-addon` | Install a new addon and generate its manifest, with WoW closed |
-| `python companion/app.py --wow "…" --manifest` | Generate `Manifest.lua` in the project folder |
-| `python tools/package_addon.py` | Generate client TOCs and the WoW archive |
-
-## Documentation and contributing
-
-<table>
-  <tr>
-    <td width="50%" valign="top">
-      <h3>📖 &nbsp; Using SV Cleaner</h3>
-      <p>The <a href="docs/user-guide.md"><strong>user guide (French)</strong></a> covers installation, the manifest, filters, bulk deletion, comparison limits, and restores.</p>
-      <p>The <a href="docs/changelog.md">changelog</a> is also available in French.</p>
-    </td>
-    <td width="50%" valign="top">
-      <h3>🛠️ &nbsp; Testing and contributing</h3>
-      <p>Contributions can improve the interface, data formats, translations, and client compatibility.</p>
-      <p>When reporting a problem, include the SV Cleaner version, WoW client, steps to reproduce, and any error. Use a minimal, anonymized data example.</p>
-    </td>
-  </tr>
-</table>
-
-<details>
-  <summary><strong>Verification and resource generation</strong></summary>
-
-```powershell
-python -m unittest discover -s tests -v
-node --check companion/web/app.js
-python tools/build_locales.py
-python tools/build_readme_assets.py
-python tools/package_addon.py
-```
-
-The companion uses Python's standard library. Lua 5.1 addon tests require `lupa`; TGA texture generators use Pillow. Lua tests are explicitly skipped if their runtime is unavailable.
-
-The `.pkgmeta` excludes the companion, local data, tests, tools, and all README artwork. The WoW archive contains the Lua modules, TOCs, TGA textures used by the addon, and the `LICENSE` and `NOTICE` files.
-
-To verify the BigWigs packager, place its official `release.sh` script in `output/compatibility/packager/`, then run `python tools/verify_pkgmeta.py`. The [guide (French)](docs/user-guide.md#vérification) describes this isolated verification.
-
-</details>
 
 ## License
 
@@ -281,8 +224,6 @@ The [project notices](NOTICE) explain third-party rights, Blizzard trademarks, a
 ## Credits
 
 **Neogeekmo** — project author.
-
-The presentation and interface organization draw inspiration from **Azeroth Pilot Reloaded** and **Vaultloom**. This README uses the project's SV logo and SVG compositions made for SV Cleaner.
 
 ---
 
