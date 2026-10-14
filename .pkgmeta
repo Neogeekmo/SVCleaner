@@ -3,7 +3,6 @@ package-as: SVCleaner
 # BigWigs' automatic Titan TOC generation is disabled upstream.
 enable-toc-creation: no
 enable-nolib-creation: no
-manual-changelog: docs/changelog.md
 
 ignore:
   # Ship TOCs, runtime Lua modules, TGA UI assets, LICENSE and NOTICE.

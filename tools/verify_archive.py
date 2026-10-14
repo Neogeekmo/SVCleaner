@@ -11,6 +11,9 @@ def verify(path, version=None):
     expected.update("SVCleaner/" + name for name in flavor_tocs())
     with ZipFile(path) as archive:
         files = [info.filename for info in archive.infolist() if not info.is_dir()]
+        # BigWigs adds this file when .pkgmeta has no manual changelog.
+        if "SVCleaner/CHANGELOG.md" in files:
+            expected.add("SVCleaner/CHANGELOG.md")
         if len(files) != len(set(files)) or set(files) != expected:
             raise ValueError(f"Unexpected archive contents: extra={set(files) - expected}, missing={expected - set(files)} (duplicates forbidden)")
         corrupt = archive.testzip()

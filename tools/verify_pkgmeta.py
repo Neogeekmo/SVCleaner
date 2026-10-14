@@ -53,10 +53,23 @@ def main():
     folder = checkout / ".release" / "SVCleaner"
     actual = {path.relative_to(folder).as_posix() for path in folder.rglob("*") if path.is_file()}
     expected = {path.relative_to(ROOT).as_posix() for path in runtime_files()} | set(flavor_tocs())
+    expected.update(actual & {"CHANGELOG.md"})
     report = {"checkout": str(checkout), "actual": sorted(actual), "expected": sorted(expected), "passed": actual == expected}
     (output / "result.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
     if actual != expected:
         raise SystemExit(f"Unexpected package contents: extra={actual - expected}, missing={expected - actual}")
+    prepared = {path.relative_to(folder).as_posix(): path.read_bytes() for path in folder.rglob("*") if path.is_file()}
+    # Exercise the second packager invocation used for publication. Without -o,
+    # -c deletes the prepared folder and leaves an empty addon for upload.
+    publication = subprocess.run(command + ["-c", "-o"], cwd=checkout, capture_output=True, text=True, timeout=120)
+    (output / "publication.log").write_text(publication.stdout + publication.stderr, encoding="utf-8")
+    if publication.returncode:
+        raise SystemExit("Publication pass failed; inspect " + str(output / "publication.log"))
+    published = {path.relative_to(folder).as_posix(): path.read_bytes() for path in folder.rglob("*") if path.is_file()}
+    if published != prepared:
+        raise SystemExit("Publication pass changed or removed the validated runtime files")
+    report["publication_passed"] = True
+    (output / "result.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
     for filename, content in flavor_tocs().items():
         actual_toc = (folder / filename).read_text(encoding="utf-8")
         # BigWigs may preserve flavor-specific directives; check the actual
@@ -64,7 +77,7 @@ def main():
         expected_interface = content.splitlines()[0]
         if expected_interface not in actual_toc:
             raise SystemExit("Incorrect client Interface in " + filename)
-    print("BigWigs .pkgmeta verified: " + str(len(actual)) + " runtime files, no companion, private data or PNG masters.")
+    print("BigWigs build and publication passes verified: " + str(len(actual)) + " unchanged runtime files, no companion, private data or PNG masters.")
 
 
 if __name__ == "__main__":

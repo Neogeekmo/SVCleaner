@@ -74,8 +74,8 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: python tools/package_addon.py --companion --version "$RELEASE_TAG"
-      # -c preserves the already validated runtime folder. The packager archives
-      # that same folder again and uploads it to all three destinations.
+      # -c skips copying; -o keeps the already validated runtime folder.
+      # Both are required when archiving that folder again for publication.
       - name: Publish the validated addon
         uses: BigWigsMods/packager@v2.6.1
         env:
@@ -83,7 +83,7 @@ jobs:
           WAGO_API_TOKEN: ${{ secrets.WAGO_API_TOKEN }}
           GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
         with:
-          args: -c -e -l -u
+          args: -c -o -e -l -u
           pandoc: 'false'
       - name: Attach the companion and checksums to GitHub
         env:

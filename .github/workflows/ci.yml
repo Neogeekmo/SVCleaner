@@ -116,6 +116,13 @@ jobs:
           pandoc: 'false'
       - name: Validate the actual BigWigs archive
         run: python tools/verify_archive.py .release/*.zip
+      - name: Repackage the prepared addon with publication options (no upload)
+        uses: BigWigsMods/packager@v2.6.1
+        with:
+          args: -d -c -o -e -l -u
+          pandoc: 'false'
+      - name: Validate the archive after the publication pass
+        run: python tools/verify_archive.py .release/*.zip
       - name: Build the separate Python companion
         run: python tools/package_addon.py --companion
       - name: Keep installable archives

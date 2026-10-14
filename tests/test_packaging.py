@@ -73,6 +73,18 @@ class PackageTests(unittest.TestCase):
                 archive.writestr("SVCleaner/SVCleaner.toc", "incomplete")
             with self.assertRaises(ValueError):
                 verify(missing)
+            empty = Path(temporary) / "empty.zip"
+            with ZipFile(empty, "w") as archive:
+                archive.writestr("SVCleaner/", "")
+            with self.assertRaises(ValueError):
+                verify(empty)
+
+    def test_validator_accepts_generated_changelog(self):
+        with tempfile.TemporaryDirectory(prefix="svc-changelog-") as temporary:
+            archive_path = build(Path(temporary) / "addon.zip", version="v1.2.3")
+            with ZipFile(archive_path, "a") as archive:
+                archive.writestr("SVCleaner/CHANGELOG.md", "# v1.2.3\n\nRelease fixes.\n")
+            verify(archive_path, version="v1.2.3")
 
     def test_companion_archive_runs_and_installs_without_repository(self):
         with tempfile.TemporaryDirectory(prefix="svc-companion-") as temporary:
