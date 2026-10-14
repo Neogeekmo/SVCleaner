@@ -1,0 +1,30 @@
+package-as: SVCleaner
+# Client TOCs are checked in: Titan currently shares the _Wrath suffix and
+# BigWigs' automatic Titan TOC generation is disabled upstream.
+enable-toc-creation: no
+enable-nolib-creation: no
+manual-changelog: docs/changelog.md
+
+ignore:
+  # Only the TOCs, runtime Lua modules and TGA UI assets belong to WoW.
+  - companion
+  - tools
+  - tests
+  - docs
+  - data
+  - output
+  - __pycache__
+  - .pytest_cache
+  - .cache
+  - .release
+  - .github
+  - .vscode
+  - .gitignore
+  - .pkgmeta
+  - README.md
+  - Lancer-SVCleaner.cmd
+  # PNG master/reference images are development assets, never loaded by WoW.
+  - "Assets/*.png"
+  - "Assets/*.svg"
+  - "*.pyc"
+  - "*.code-workspace"
