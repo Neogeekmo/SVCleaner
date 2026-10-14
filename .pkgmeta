@@ -11,6 +11,7 @@ ignore:
   - tools
   - tests
   - docs
+  - readme
   - data
   - output
   - __pycache__

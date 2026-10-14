@@ -1,0 +1,12 @@
+__pycache__/
+data/
+*.pyc
+.pytest_cache/
+node_modules/
+output/
+.cache/
+.release/
+.env
+.env.*
+!.env.example
+!.env.sample

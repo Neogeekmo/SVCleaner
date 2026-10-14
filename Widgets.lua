@@ -176,7 +176,10 @@ function UI:Choice(parent,width,options,value,callback)
             menu.search=UI:Input(menu,260,""); menu.search:SetPoint("TOPLEFT",8,-8)
             menu.close=UI:Button(menu,L.CLOSE,80,function() menu:Hide() end); menu.close:SetPoint("BOTTOMRIGHT",-8,8)
             menu.list=UI:List(menu,260,268,function(row,item)
-            row.text:SetText(item.label); row.detail:SetText(item.detail or ""); UI:Tooltip(row,function() return item.label..(item.detail and "\n"..item.detail or "") end)
+                row.text:ClearAllPoints(); row.text:SetJustifyV("MIDDLE")
+                row.text:SetPoint("LEFT",10,item.detail and 8 or 0); row.text:SetPoint("RIGHT",-10,item.detail and 8 or 0); row.text:SetHeight(18)
+                row.text:SetText(item.label); row.detail:SetText(item.detail or ""); row.detail:SetShown(item.detail~=nil)
+                UI:Tooltip(row,function() return item.label..(item.detail and "\n"..item.detail or "") end)
                 row:SetScript("OnClick",function() local c=menu.choice; c:SetOptions(c.options,item.value); menu:Hide(); menu.callback(item.value) end)
             end); menu.list:SetPoint("TOPLEFT",8,-48)
             function menu:Filter(query) local items={}; for _,item in ipairs(self.choice.options) do if SVC:Fold(item.label.." "..(item.detail or "")):find(SVC:Fold(query),1,true) then items[#items+1]=item end end; self.list:SetItems(items) end
@@ -184,7 +187,10 @@ function UI:Choice(parent,width,options,value,callback)
             menu.search:SetScript("OnEscapePressed",function() menu:Hide() end)
         end
         menu:Hide(); menu.choice,menu.callback=choice,callback; menu:ClearAllPoints(); menu:SetPoint("TOPLEFT",choice,"BOTTOMLEFT",0,-3)
-        menu:SetSize(math.max(300,width),360); menu.search:SetWidth(menu:GetWidth()-16); menu.list:SetWidth(menu:GetWidth()-16)
+        local detailed=false; for _,option in ipairs(choice.options) do if option.detail then detailed=true; break end end
+        menu.list.rowHeight=detailed and 40 or 28
+        local height=math.min(360,90+#choice.options*menu.list.rowHeight)
+        menu:SetSize(math.max(300,choice:GetWidth()),height); menu.search:SetWidth(menu:GetWidth()-16); menu.list:SetSize(menu:GetWidth()-16,height-90)
         menu.search:SetText(""); menu:Filter(""); UI.menuOutside:Show(); menu:Show()
     end)
     return choice

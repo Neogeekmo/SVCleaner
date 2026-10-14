@@ -1,0 +1,32 @@
+{
+  "git.repositoryScanIgnoredFolders": ["node_modules", "output", "data"],
+  "git.ignoredRepositories": [
+    "output/compatibility/packager/check-4bcvuiaz",
+    "output/compatibility/packager/check-6e_t8wpk"
+  ],
+  "Lua.runtime.version": "Lua 5.1",
+  "Lua.diagnostics.globals": [
+    "UISpecialFrames",
+    "UIParent",
+    "GameTooltip",
+    "BackdropTemplateMixin",
+    "SlashCmdList",
+    "STANDARD_TEXT_FONT",
+    "GameFontNormal",
+    "Minimap"
+  ],
+  "Lua.runtime.builtin": {
+    "basic": "disable",
+    "debug": "disable",
+    "io": "disable",
+    "math": "disable",
+    "os": "disable",
+    "package": "disable",
+    "string": "disable",
+    "table": "disable",
+    "utf8": "disable"
+  },
+  "Lua.workspace.library": [
+    "~\\.vscode\\extensions\\ketho.wow-api-0.22.3\\Annotations\\Core"
+  ]
+}
