@@ -1,4 +1,4 @@
-"""Build a minimal multi-client WoW archive, independent of the companion."""
+"""Build a minimal multi-client WoW archive with license notices."""
 import re
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
@@ -10,7 +10,7 @@ FLAVORS = {"Retail": "Mainline", "Classic": "Vanilla", "BCC": "TBC", "Wrath": "W
 def runtime_files():
     toc = ROOT / "SVCleaner.toc"
     modules = [line.strip() for line in toc.read_text(encoding="utf-8").splitlines() if line.strip() and not line.lstrip().startswith("#")]
-    paths = [toc] + [ROOT / module for module in modules] + [ROOT / "Assets" / "logo.tga", ROOT / "Assets" / "icons.tga"]
+    paths = [toc] + [ROOT / module for module in modules] + [ROOT / "Assets" / "logo.tga", ROOT / "Assets" / "icons.tga", ROOT / "LICENSE", ROOT / "NOTICE"]
     for path in paths:
         if not path.is_file() or not path.resolve().is_relative_to(ROOT):
             raise ValueError("Invalid runtime file: " + str(path))

@@ -6,7 +6,7 @@ enable-nolib-creation: no
 manual-changelog: docs/changelog.md
 
 ignore:
-  # Only the TOCs, runtime Lua modules and TGA UI assets belong to WoW.
+  # Ship TOCs, runtime Lua modules, TGA UI assets, LICENSE and NOTICE.
   - companion
   - tools
   - tests

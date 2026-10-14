@@ -150,7 +150,7 @@ def install(store):
     if target.exists():
         raise DataError("SVCleaner est déjà installé ; synchronisez les fichiers avec votre outil habituel")
     target.mkdir()
-    for filename in ("SVCleaner.toc", "Compat.lua", "Locale.lua", "Core.lua", "Widgets.lua", "Compare.lua", "UI.lua"):
+    for filename in ("SVCleaner.toc", "Compat.lua", "Locale.lua", "Core.lua", "Widgets.lua", "Compare.lua", "UI.lua", "LICENSE", "NOTICE"):
         shutil.copy2(PROJECT / filename, target / filename)
     (target / "Assets").mkdir()
     for asset in ("logo.tga", "icons.tga"):

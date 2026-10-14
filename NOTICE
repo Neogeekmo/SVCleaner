@@ -1,0 +1,36 @@
+SV Cleaner (SVCleaner)
+Copyright (c) 2026 Neogeekmo
+
+License scope
+-------------
+The MIT License in LICENSE covers the original code, documentation, and
+artwork of this project, including the in-game Lua addon, the local Python
+companion, and the project's tools. Third-party material, where present,
+remains subject to its respective owners' rights and license terms.
+The license does not grant rights to user data, other addons, or Blizzard
+game assets that SV Cleaner accesses or references.
+
+World of Warcraft
+-----------------
+SV Cleaner is an independent community project. It is not affiliated with,
+endorsed by, or sponsored by Blizzard Entertainment. World of Warcraft and
+Blizzard Entertainment names and marks belong to their respective owners.
+The MIT License does not grant trademark rights.
+
+Blizzard's rules apply separately to use and distribution within its ecosystem.
+Its UI Add-On Development Policy requires free addon distribution, publicly
+accessible and unobfuscated addon code, no in-game advertisements or donation
+requests, and compliance with the game's Terms of Use and EULA. Blizzard may
+disable addon functionality. Consult the policy for its full requirements:
+https://us.forums.blizzard.com/en/wow/t/ui-add-on-development-policy/24534
+
+These reminders do not modify the MIT License or add license conditions.
+
+SavedVariables and backups
+-------------------------
+The local companion can modify or remove SavedVariables and reset caches.
+Keep an independent backup of your WTF folder, close all WoW clients before
+applying changes, and review each operation. Backups and restoration features
+do not guarantee recovery or compatibility with every addon or game version.
+The warranty and liability disclaimer in LICENSE applies to this software,
+including its data maintenance functions, to the extent permitted by law.

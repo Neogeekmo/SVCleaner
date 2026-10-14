@@ -20,6 +20,7 @@
 ## Notes-zhCN: 查看 SavedVariables、对比角色数据并准备清理。
 ## Notes-zhTW: 檢視 SavedVariables、比較角色資料並準備清理。
 ## Author: Neogeekmo
+## X-License: MIT
 ## Version: 0.1.0
 ## SavedVariables: SVCleanerDB
 ## IconTexture: Interface\AddOns\SVCleaner\Assets\logo.tga

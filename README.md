@@ -266,11 +266,17 @@ python tools/package_addon.py
 
 The companion uses Python's standard library. Lua 5.1 addon tests require `lupa`; TGA texture generators use Pillow. Lua tests are explicitly skipped if their runtime is unavailable.
 
-The `.pkgmeta` excludes the companion, local data, tests, tools, and all README artwork. The WoW archive contains the Lua modules, TOCs, and TGA textures used by the addon.
+The `.pkgmeta` excludes the companion, local data, tests, tools, and all README artwork. The WoW archive contains the Lua modules, TOCs, TGA textures used by the addon, and the `LICENSE` and `NOTICE` files.
 
 To verify the BigWigs packager, place its official `release.sh` script in `output/compatibility/packager/`, then run `python tools/verify_pkgmeta.py`. The [guide (French)](docs/user-guide.md#vérification) describes this isolated verification.
 
 </details>
+
+## License
+
+Copyright (c) 2026 **Neogeekmo**. SV Cleaner's original code, documentation, and artwork, including the addon and local companion, are distributed under the [MIT License](LICENSE). You may use, modify, and redistribute them, including commercially, provided you retain the copyright and license notice. The software is provided without warranty, subject to applicable law. See the [MIT license text](https://opensource.org/license/mit).
+
+The [project notices](NOTICE) explain third-party rights, Blizzard trademarks, and precautions for SavedVariables cleanup. Blizzard's [UI Add-On Development Policy](https://us.forums.blizzard.com/en/wow/t/ui-add-on-development-policy/24534) applies separately and requires free addon distribution and publicly accessible addon code. SV Cleaner is an independent project and is not endorsed by Blizzard Entertainment.
 
 ## Credits
 
