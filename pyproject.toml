@@ -1,0 +1,19 @@
+[tool.ruff]
+target-version = "py310"
+include = ["companion/**/*.py", "tools/**/*.py", "tests/**/*.py"]
+
+[tool.ruff.lint]
+# Start with syntax, invalid comparisons and undefined names in the existing code.
+select = ["E9", "F63", "F7", "F82"]
+
+[tool.coverage.run]
+source = ["companion"]
+branch = true
+omit = ["companion/private.py"]
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
+
+[tool.coverage.xml]
+output = "coverage.xml"

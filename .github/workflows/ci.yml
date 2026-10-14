@@ -1,0 +1,130 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONUTF8: '1'
+
+jobs:
+  quality:
+    name: Syntax and generated files
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14'
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - run: python -m pip install -r requirements-dev.txt
+      - name: Validate GitHub Actions workflows with actionlint
+        shell: bash
+        run: |
+          curl --fail --silent --show-error --location \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz \
+            --output "$RUNNER_TEMP/actionlint.tar.gz"
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $RUNNER_TEMP/actionlint.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/actionlint.tar.gz" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint" -color
+      - name: Check Python syntax and undefined names
+        run: |
+          python -m compileall -q companion tools tests
+          python -m ruff check .
+      - name: Check browser JavaScript syntax
+        run: node --check companion/web/app.js
+      - name: Verify generated locales, client TOCs and textures
+        run: python tools/build.py --check
+      - name: Check all Lua files with Lua 5.1
+        shell: python
+        run: |
+          from pathlib import Path
+          from lupa.lua51 import LuaRuntime
+          lua = LuaRuntime()
+          compile_lua = lua.eval('function(source, name) local fn, err = loadstring(source, name); assert(fn, err) end')
+          for path in Path('.').glob('*.lua'):
+              compile_lua(path.read_text(encoding='utf-8'), str(path))
+
+  tests:
+    name: Python ${{ matrix.python }} / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - run: python -m pip install -r requirements-dev.txt
+      - name: Run Python, Lua 5.1, HTTP and packaging tests (no skips)
+        run: python -m coverage run tests/check.py
+      - name: Run companion CLI with synthetic data
+        run: |
+          python companion/app.py --help
+          python companion/app.py --demo --scan
+      - name: Export Python coverage
+        run: |
+          python -m coverage report
+          python -m coverage xml
+      - name: Keep coverage report
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: coverage-${{ matrix.os }}-py${{ matrix.python }}
+          path: coverage.xml
+          if-no-files-found: error
+          retention-days: 14
+
+  packages:
+    name: Validate distribution archives
+    needs: [quality, tests]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14'
+      - name: Package the addon without uploading
+        uses: BigWigsMods/packager@90e603be6bcdeff99fb7061105a36b829fa70970 # v2
+        with:
+          args: -d -e -l -u
+          pandoc: 'false'
+      - name: Validate the actual BigWigs archive
+        run: python tools/verify_archive.py .release/*.zip
+      - name: Build the separate Python companion
+        run: python tools/package_addon.py --companion
+      - name: Keep installable archives
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: packages
+          path: |
+            .release/*.zip
+            output/SVCleaner-Companion-*.zip
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14

@@ -1,1 +1,1 @@
-PACKAGING CANARY - synthetic, no user data
+# PACKAGING CANARY - synthetic, no user data

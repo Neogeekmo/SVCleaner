@@ -30,7 +30,7 @@ def main():
         (checkout / filename).write_text(content, encoding="utf-8")
     # Tracked canaries ensure the pkgmeta rules, rather than Git's untracked-file
     # exclusion, actually keep the companion, private data and masters out.
-    for filename in ("companion/private.py", "tools/build.py", "tests/check.py", "docs/notes.md", "readme/assets/banner.svg", "readme/assets/grid-preview.png", "data/private.original", "output/private.zip", "README.md", "Lancer-SVCleaner.cmd", "Assets/logo.png", "Assets/source.svg", "debug.pyc"):
+    for filename in ("companion/private.py", "tools/build.py", "tests/check.py", "docs/notes.md", "readme/assets/banner.svg", "readme/assets/grid-preview.png", "data/private.original", "output/private.zip", "README.md", "Lancer-SVCleaner.cmd", "Assets/logo.png", "Assets/source.svg", "debug.pyc", "pyproject.toml", "requirements-dev.txt", ".gitattributes", ".github/workflows/ci.yml", ".coverage", "coverage.xml", "htmlcov/index.html", ".venv/pyvenv.cfg", ".ruff_cache/cache", "AGENTS.md"):
         target = checkout / filename
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text("PACKAGING CANARY - synthetic, no user data", encoding="utf-8")

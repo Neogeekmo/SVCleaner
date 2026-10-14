@@ -91,6 +91,8 @@ def archived(branch, sha, version):
 
 if __name__ == "__main__":
     rows = json.loads((OUT / "reference-audit.json").read_text())
+    if not rows or any("error" in row for row in rows):
+        raise SystemExit("Reference download failed or produced an empty audit")
     rows = [row for row in rows if row["branch"] != "classic_beta"]
     rows.extend((archived("cata-4.4.2", "a1ca983a43a7aa73b5764d3245925ba40869fce3", "4.4.2"),
                  archived("wrath-3.4.3", "564ca565fd2de4d1bd4ca787d75d9f8c6d1ffcde", "3.4.3")))
@@ -99,3 +101,7 @@ if __name__ == "__main__":
     (OUT / "api-audit.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
     for row in result:
         print(row["branch"], row["version"], "unresolved:", [name for name, present in row["apiChecks"].items() if not present])
+    # UnitFullName, UnitName and C_Timer.After have explicit runtime fallbacks.
+    required = ("GetNumAddOns", "GetAddOnInfo", "GetAddOnMetadata", "IsAddOnLoaded", "CreateFrame", "UnitGUID", "GetRealmName", "InCombatLockdown")
+    if any(not all(row["apiChecks"][name] for name in required) for row in result):
+        raise SystemExit("Required WoW APIs could not be verified; inspect api-audit.json")

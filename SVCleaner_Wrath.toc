@@ -14,7 +14,9 @@
 ## Notes-zhTW: 檢視 SavedVariables、比較角色資料並準備清理。
 ## Author: Neogeekmo
 ## X-License: MIT
-## Version: 0.1.0
+## Version: @project-version@
+## X-Curse-Project-ID: 1744570
+## X-Wago-ID: mNww8PNo
 ## SavedVariables: SVCleanerDB
 ## IconTexture: Interface\AddOns\SVCleaner\Assets\logo.tga
 ## AddonCompartmentFunc: SVCleaner_OnAddonCompartmentClick

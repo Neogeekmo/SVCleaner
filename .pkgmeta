@@ -22,6 +22,15 @@ ignore:
   - .vscode
   - .gitignore
   - .pkgmeta
+  - .gitattributes
+  - .venv
+  - .ruff_cache
+  - .coverage
+  - coverage.xml
+  - htmlcov
+  - pyproject.toml
+  - requirements-dev.txt
+  - AGENTS.md
   - README.md
   - Lancer-SVCleaner.cmd
   # PNG master/reference images are development assets, never loaded by WoW.

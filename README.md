@@ -215,6 +215,68 @@ The addon follows WoW's language: **English, French, German, European and Latin 
 | `python companion/app.py --wow "…"` | Open the companion for the specified game client folder |
 | `python companion/app.py --demo` | Try the companion with sample data |
 
+## Development, CI and releases
+
+The companion runs with Python 3.10+ and no third-party runtime dependencies.
+Install the development dependencies to run the full test suite, including Lua 5.1:
+
+```sh
+python -m pip install -r requirements-dev.txt
+python tests/check.py
+python tools/build.py --check
+```
+
+`python tools/build.py --version v0.1.0` regenerates locales, client TOCs and textures,
+then creates addon and companion ZIPs in `output/`. Commit generated files together
+with their source changes. The addon archive contains only runtime Lua, all eight
+TOCs, TGA textures, `LICENSE` and `NOTICE`. The separate companion archive includes
+its Python scripts, browser UI, Windows launcher and addon installer; it requires
+Python 3.10+ and ships no user data or backups.
+
+| Automation | Trigger | Checks / output |
+|---|---|---|
+| **CI** | Branch pushes, pull requests, manual run | Python 3.10–3.14 on Windows and Linux; Python and JavaScript syntax; Lua 5.1; HTTP, data protection, locales and packaging tests; coverage reports; generated-file consistency; verified addon and companion ZIP artifacts |
+| **Release** | Push a version tag | Runs the full CI before publishing the addon to GitHub, CurseForge **1744570** and Wago **mNww8PNo**; attaches the companion ZIP and SHA-256 checksums to GitHub |
+| **WoW API compatibility** | Manual run in Actions | Downloads reference UI exports at recorded commit SHAs, checks required APIs and widget methods, saves audit JSON reports |
+| **Dependabot** | Weekly | Proposes updates to pinned GitHub Actions and development dependencies |
+
+The test runner fails if any tests are skipped: an unavailable Lua runtime cannot
+produce a green pipeline. Archive validation rejects extra or missing files and
+checks module order, client interfaces, distribution IDs and the release version.
+Actions are pinned to commit SHAs. The publication integration follows the
+[BigWigs packager documentation](https://github.com/BigWigsMods/packager).
+
+Before the first release, add these repository secrets in
+[Settings → Secrets and variables → Actions](https://github.com/Neogeekmo/SVCleaner/settings/secrets/actions):
+
+| Secret | Value |
+|---|---|
+| `CF_API_KEY` | CurseForge upload API token with access to project `1744570` |
+| `WAGO_API_TOKEN` | Wago Addons API token with access to project `mNww8PNo` |
+
+GitHub supplies `GITHUB_TOKEN` automatically; the release job grants it
+`contents: write`. Both external tokens are required: a missing secret stops
+publication with an explicit error. CI and manual packaging need no upload tokens.
+
+Update `docs/changelog.md`, commit and push the changes, then push a version tag:
+
+```sh
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+Use `v0.1.1-alpha.1` or `v0.1.1-beta.1` for prereleases. The workflows accept
+`vMAJOR.MINOR.PATCH` with those optional suffixes; `@project-version@` in the TOCs
+is replaced automatically. Every release reruns the CI against the tagged commit.
+For a preview without publishing, run **CI → Run workflow** and download the
+`packages` artifact. Check failed uploads before rerunning a release, since one
+destination may already have accepted the file.
+
+`tools/sync_addon.py` and `tools/verify_real.py` operate on a local WoW installation;
+they are kept as local tools. GitHub runners use synthetic fixtures. The manual
+reference audit requires network access and supplements the normal CI; it does
+not replace testing inside each supported WoW client.
+
 ## License
 
 Copyright (c) 2026 **Neogeekmo**. SV Cleaner's original code, documentation, and artwork, including the addon and local companion, are distributed under the [MIT License](LICENSE). You may use, modify, and redistribute them, including commercially, provided you retain the copyright and license notice. The software is provided without warranty, subject to applicable law. See the [MIT license text](https://opensource.org/license/mit).

@@ -1,0 +1,112 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PYTHONUTF8: '1'
+
+jobs:
+  validate-tag:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate version tag
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        shell: python
+        run: |
+          import os, re
+          tag = os.environ['RELEASE_TAG']
+          assert re.fullmatch(r'v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-(alpha|beta)\.[1-9]\d*)?', tag), 'Use v1.2.3, v1.2.3-alpha.1 or v1.2.3-beta.1'
+
+  checks:
+    needs: validate-tag
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    name: Publish to GitHub, CurseForge and Wago
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.14'
+      - name: Require both publication tokens
+        env:
+          CF_API_KEY: ${{ secrets.CF_API_KEY }}
+          WAGO_API_TOKEN: ${{ secrets.WAGO_API_TOKEN }}
+        shell: bash
+        run: |
+          missing=0
+          for key in CF_API_KEY WAGO_API_TOKEN; do
+            if [[ -z "${!key}" ]]; then
+              echo "::error::Missing repository Actions secret: $key"
+              missing=1
+            fi
+          done
+          exit "$missing"
+      - name: Build release package without uploading
+        uses: BigWigsMods/packager@90e603be6bcdeff99fb7061105a36b829fa70970 # v2
+        with:
+          args: -d -e -l -u
+          pandoc: 'false'
+      - name: Validate release contents and tagged version
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: python tools/verify_archive.py .release/*.zip --version "$RELEASE_TAG"
+      - name: Build the Python companion release
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: python tools/package_addon.py --companion --version "$RELEASE_TAG"
+      # -c preserves the already validated runtime folder. The packager archives
+      # that same folder again and uploads it to all three destinations.
+      - name: Publish the validated addon
+        uses: BigWigsMods/packager@90e603be6bcdeff99fb7061105a36b829fa70970 # v2
+        env:
+          CF_API_KEY: ${{ secrets.CF_API_KEY }}
+          WAGO_API_TOKEN: ${{ secrets.WAGO_API_TOKEN }}
+          GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: -c -e -l -u
+          pandoc: 'false'
+      - name: Attach the companion and checksums to GitHub
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python - <<'PY'
+          import hashlib
+          from pathlib import Path
+          paths = sorted(Path('.release').glob('*.zip')) + sorted(Path('output').glob('SVCleaner-Companion-*.zip'))
+          Path('output/SHA256SUMS.txt').write_text(''.join(f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n' for p in paths), encoding='utf-8')
+          PY
+          gh release upload "$RELEASE_TAG" output/SVCleaner-Companion-*.zip output/SHA256SUMS.txt --clobber
+      - name: Keep release archives even if an upload fails
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: release-packages
+          path: |
+            .release/*.zip
+            .release/release.json
+            output/SVCleaner-Companion-*.zip
+            output/SHA256SUMS.txt
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 30

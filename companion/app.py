@@ -146,19 +146,23 @@ def create_server(store, port=0):
 
 def install(store):
     check_game_closed()
+    sys.path.insert(0, str(PROJECT / "tools"))
+    from package_addon import flavor_tocs, package_version
+    version = package_version()
     target = contained(store.root / "Interface" / "AddOns" / "SVCleaner", store.root)
     if target.exists():
         raise DataError("SVCleaner est déjà installé ; synchronisez les fichiers avec votre outil habituel")
     target.mkdir()
     for filename in ("SVCleaner.toc", "Compat.lua", "Locale.lua", "Core.lua", "Widgets.lua", "Compare.lua", "UI.lua", "LICENSE", "NOTICE"):
-        shutil.copy2(PROJECT / filename, target / filename)
+        if filename.endswith(".toc"):
+            (target / filename).write_text((PROJECT / filename).read_text(encoding="utf-8").replace("@project-version@", version), encoding="utf-8")
+        else:
+            shutil.copy2(PROJECT / filename, target / filename)
     (target / "Assets").mkdir()
     for asset in ("logo.tga", "icons.tga"):
         shutil.copy2(PROJECT / "Assets" / asset, target / "Assets" / asset)
-    sys.path.insert(0, str(PROJECT / "tools"))
-    from package_addon import flavor_tocs
     for filename, content in flavor_tocs().items():
-        (target / filename).write_text(content, encoding="utf-8")
+        (target / filename).write_text(content.replace("@project-version@", version), encoding="utf-8")
     store.manifest(target / "Manifest.lua")
     print(f"Addon installé dans {target}")
 

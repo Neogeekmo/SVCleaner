@@ -1,8 +1,10 @@
 """Cache pinned Blizzard UI references for the compatibility audit (read-only)."""
 import concurrent.futures
 import json
+import os
 import re
 import urllib.request
+from urllib.parse import urlsplit
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -12,7 +14,12 @@ HEADERS = {"User-Agent": "SVCleaner-compatibility-check", "Accept": "application
 
 
 def fetch(url):
-    with urllib.request.urlopen(urllib.request.Request(url, headers=HEADERS), timeout=25) as response:
+    headers = dict(HEADERS)
+    # Authentication is restricted to GitHub's API host; raw downloads and
+    # archive URLs must never receive the workflow token.
+    if urlsplit(url).hostname == "api.github.com" and os.environ.get("GITHUB_TOKEN"):
+        headers["Authorization"] = "Bearer " + os.environ["GITHUB_TOKEN"]
+    with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=25) as response:
         return response.read()
 
 
@@ -62,6 +69,8 @@ def main():
                 print(json.dumps({"branch": branch, "error": str(error)}), flush=True)
                 rows.append({"branch": branch, "sha": shas[branch], "error": str(error)})
     (OUT / "reference-audit.json").write_text(json.dumps(rows, indent=2), encoding="utf-8")
+    if not rows or any("error" in row for row in rows):
+        raise SystemExit("Incomplete reference download; inspect reference-audit.json")
 
 
 if __name__ == "__main__":
