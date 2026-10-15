@@ -245,13 +245,13 @@ function SVC:QueueSelection(operation)
     end)
 end
 function SVC:ShowPage(id)
-    self.activePage=id; self.dataPage:SetShown(id=="data"); self.diff:SetShown(id=="compare"); self.cvarPage:SetShown(id=="cvars"); self.overlay:SetShown(id=="guide" or id=="companion" or id=="requests")
-    for key,button in pairs(self.tabs) do UI:Active(button,key==id) end
+    self.activePage=id; self.dataPage:SetShown(id=="data"); self.diff:SetShown(id=="compare"); self.cvarPage:SetShown(id=="cvars"); self.overlay:SetShown(id=="guide" or id=="requests")
+    local activeTab=id=="compare" and "data" or id
+    for key,button in pairs(self.tabs) do UI:Active(button,key==activeTab) end
     if UI.menu then UI.menu:Hide() end
     if id=="compare" then self:RefreshDiff()
     elseif id=="cvars" then self:DiscoverCVars()
     elseif id=="guide" then self.guideTitle:SetText(L.CACHES); self.guideText:SetText(table.concat({L.GUIDE_RELOAD,L.GUIDE_GX,L.GUIDE_GC,L.GUIDE_DISK,L.GUIDE_SETTINGS,L.GUIDE_NOTE},"\n\n"))
-    elseif id=="companion" then self.guideTitle:SetText(L.COMPANION); self.guideText:SetText(L.COMPANION_GUIDE)
     elseif id=="requests" then
         self.guideTitle:SetText(string.format(L.REQUEST_COUNT,#self.pending)); local lines={L.REQUEST_HINT}
         for _,request in ipairs(self.pending) do if request.kind=="cvar" then lines[#lines+1]=L.CVAR_HINT; break end end
@@ -265,7 +265,6 @@ function SVC:ShowPage(id)
     end
 end
 function SVC:ShowGuide() self:ShowPage("guide") end
-function SVC:ShowCompanion() self:ShowPage("companion") end
 function SVC:Layout()
     if not self.frame or self.layoutBusy then return end; self.layoutBusy=true
     local w,h=self.frame:GetWidth(),self.frame:GetHeight(); local inner=w-32
@@ -328,7 +327,7 @@ function SVC:CreateUI()
     local theme=UI:Button(header,L.THEME,140,function() SVCleanerDB.theme=SVCleanerDB.theme=="dark" and "light" or "dark"; UI:Theme(); self:ShowPage(self.activePage or "data") end); theme:SetPoint("TOPRIGHT",-66,-16)
     local close=UI:IconButton(header,3,L.CLOSE,function() frame:Hide() end); close:SetPoint("TOPRIGHT",-20,-16)
     self.tabs={}; local x=16
-    for _,def in ipairs({{"data",L.DATA},{"compare",L.COMPARE},{"guide",L.CACHES},{"companion",L.COMPANION},{"requests",L.REQUESTS},{"cvars",L.CVARS}}) do
+    for _,def in ipairs({{"data",L.DATA},{"cvars",L.CVARS},{"requests",L.REQUESTS},{"guide",L.CACHES}}) do
         local id=def[1]; local tab=UI:Button(frame,def[2],154,function() self:ShowPage(id) end); tab:SetPoint("TOPLEFT",x,-66); self.tabs[id]=tab; x=x+160
     end
     self.metrics=UI:Panel(frame); self.metric=UI:Text(self.metrics,"",11,"muted"); self.metric:SetPoint("LEFT",12,0)

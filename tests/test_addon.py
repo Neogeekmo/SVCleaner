@@ -190,6 +190,9 @@ class AddonTests(unittest.TestCase):
         self.lua.execute('''
             SVC:Toggle()
             assert(SVC.frame:IsShown())
+            local count=0; for _ in pairs(SVC.tabs) do count=count+1 end; assert(count==4)
+            for i,id in ipairs({"data","cvars","requests","guide"}) do assert(SVC.tabs[id]._point[2]==16+(i-1)*160) end
+            assert(SVC.tabs.companion==nil and SVC.ShowCompanion==nil)
             local row
             for _, candidate in ipairs(SVC.rows) do if candidate.root == "APRData" then row = candidate end end
             SVC:OpenRow(row)
@@ -200,7 +203,7 @@ class AddonTests(unittest.TestCase):
             assert(SVC.diff:IsShown() and #SVC.diffList.items == 3)
             SVCleanerDB.theme = "light"; SVC.UI:Theme()
             SVC:ShowGuide(); assert(SVC.overlay:IsShown())
-            SVC:ShowCompanion()
+            SVC:ShowPage("requests")
             SVC:Toggle(); assert(not SVC.frame:IsShown())
         ''')
 

@@ -40,4 +40,4 @@ class LocaleTests(unittest.TestCase):
                 addon=AddonTests(); addon.setUp()
                 addon.lua.globals().SVC.locale=locale
                 addon.open_ui()
-                addon.lua.execute('SVC:ShowGuide(); SVC:ShowCompanion(); SVC:ShowPage("requests"); SVC:ShowPage("cvars"); SVC:ShowDiff(); SVC.frame:SetSize(1040,680); SVC:Layout()')
+                addon.lua.execute('SVC:ShowGuide(); SVC:ShowPage("requests"); SVC:ShowPage("cvars"); SVC:ShowDiff(); SVC.frame:SetSize(1040,680); SVC:Layout()')
