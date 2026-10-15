@@ -63,10 +63,6 @@ def kind(value):
     raise DataError("Type Lua non pris en charge")
 
 
-def key_equal(a, b):
-    return kind(a) == kind(b) and a == b
-
-
 def token(key):
     if isinstance(key, int) and not isinstance(key, bool) and abs(key) > 2**53 - 1:
         return {"type": "number", "value": str(key), "encoding": "decimal"}

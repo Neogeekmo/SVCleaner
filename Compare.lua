@@ -8,12 +8,6 @@ local function name(slot)
     for i,key in ipairs(slot.path) do if (key=="profiles" or key=="char") and slot.path[i+1] then return tostring(slot.path[i+1]) end end
     return tostring(slot.path[#slot.path] or slot.row.root)
 end
-function SVC:Pin(side)
-    if not self.selected or not self.selected.available then self:Notice(L.SELECT_VARIABLE); return end
-    self[side]={row=self.selected,path=append(self.editSelection and self.editSelection.path or self.path,{})}
-    self:Notice(name(self[side]))
-    self:ShowDiff()
-end
 function SVC:ShowDiff() self:ShowPage("compare") end
 function SVC:ComparisonChoices(side)
     local options={{value="",label=L.SELECT_VARIABLE}}; local opposite=side=="left" and self.right or self.left

@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "companion"))
-from lua_data import DataError, Table, at, differences, dump, identity, merge_values, parse, token, untoken
+from lua_data import DataError, at, differences, dump, merge_values, parse, token, untoken
 
 
 class ParserTests(unittest.TestCase):

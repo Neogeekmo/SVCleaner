@@ -10,8 +10,8 @@ from urllib.request import Request, urlopen
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "companion"))
 from app import create_server
-from lua_data import DataError, at, parse, token
-from service import Store, check_game_closed
+from lua_data import DataError, at, token
+from service import Store
 
 
 class StoreTests(unittest.TestCase):

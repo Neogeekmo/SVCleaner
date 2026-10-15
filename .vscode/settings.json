@@ -1,9 +1,5 @@
 {
   "git.repositoryScanIgnoredFolders": ["node_modules", "output", "data"],
-  "git.ignoredRepositories": [
-    "output/compatibility/packager/check-4bcvuiaz",
-    "output/compatibility/packager/check-6e_t8wpk"
-  ],
   "Lua.runtime.version": "Lua 5.1",
   "Lua.diagnostics.globals": [
     "UISpecialFrames",
@@ -13,7 +9,9 @@
     "SlashCmdList",
     "STANDARD_TEXT_FONT",
     "GameFontNormal",
-    "Minimap"
+    "Minimap",
+    "StaticPopupDialogs",
+    "StaticPopup_Show"
   ],
   "Lua.runtime.builtin": {
     "basic": "disable",

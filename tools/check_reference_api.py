@@ -4,7 +4,6 @@ import io
 import json
 import re
 import urllib.error
-from pathlib import Path
 from zipfile import ZipFile
 
 from fetch_wow_reference import fetch, OUT

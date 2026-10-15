@@ -30,7 +30,6 @@ function SVC:Refresh()
     self.reloadButton:SetEnabled(#self.pending > 0 and not InCombatLockdown())
     self:RefreshTree(); self:RefreshDetail()
 end
-function SVC:RefreshGraph() end -- Metrics are compact; the companion provides disk charts.
 function SVC:OpenRow(row)
     self.selected,self.path,self.editSelection=row,{},nil; self.comparisonSelection={}; self.detail:Hide(); self.charQuery=""; self.charSearch:SetText("")
     self.catalog.selected=row; self.catalog:Render(); self:RefreshTree(); self:RefreshDetail(); self:Layout()
