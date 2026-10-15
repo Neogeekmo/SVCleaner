@@ -74,6 +74,11 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: python tools/package_addon.py --companion --version "$RELEASE_TAG"
+      - name: Retrieve the tested Windows portable companion
+        uses: actions/download-artifact@v8.0.2
+        with:
+          name: companion-windows-x64
+          path: output
       # -c skips copying; -o keeps the already validated runtime folder.
       # Both are required when archiving that folder again for publication.
       - name: Publish the validated addon

@@ -1,5 +1,6 @@
 # Unreleased
 
+- Companion Windows 64 bits portable : exécutable avec Python embarqué, choix du dossier WoW au premier lancement, sauvegardes persistantes et publication du ZIP via GitHub Releases.
 - Application des changements préparés en jeu avec reload et vérification après rechargement.
 - Avertissement à la fermeture avec demandes en attente ; conservation pour reprise via le compagnon.
 - Création de clés typées, valeurs et tables vides dans les deux interfaces.

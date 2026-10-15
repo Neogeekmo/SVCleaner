@@ -23,12 +23,14 @@ ignore:
   - .pkgmeta
   - .gitattributes
   - .venv
+  - .venv-packaging
   - .ruff_cache
   - .coverage
   - coverage.xml
   - htmlcov
   - pyproject.toml
   - requirements-dev.txt
+  - requirements-packaging.txt
   - AGENTS.md
   - README.md
   - Lancer-SVCleaner.cmd

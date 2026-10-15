@@ -13,9 +13,10 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 from lua_data import DataError
-from service import DEFAULT_WOW, PROJECT, Store, check_game_closed, contained, digest
+from service import DEFAULT_WOW, Store, check_game_closed, contained, digest
+from runtime import FROZEN, HOME, PROJECT
 
-WEB = Path(__file__).parent / "web"
+WEB = PROJECT / "companion" / "web"
 VERSION_LABELS = {
     "_retail_": "Retail", "_ptr_": "Retail · PTR", "_xptr_": "Retail · PTR expérimental",
     "_beta_": "Retail · Bêta", "_classic_": "Classic", "_classic_beta_": "Classic · Bêta",
@@ -146,12 +147,17 @@ def create_server(store, port=0):
 
 def install(store):
     check_game_closed()
-    sys.path.insert(0, str(PROJECT / "tools"))
-    from package_addon import flavor_tocs, package_version
-    version = package_version()
     target = contained(store.root / "Interface" / "AddOns" / "SVCleaner", store.root)
     if target.exists():
         raise DataError("SVCleaner est déjà installé ; synchronisez les fichiers avec votre outil habituel")
+    if FROZEN:
+        shutil.copytree(PROJECT / "addon", target)
+        store.manifest(target / "Manifest.lua")
+        print(f"Addon installé dans {target}")
+        return
+    sys.path.insert(0, str(PROJECT / "tools"))
+    from package_addon import flavor_tocs, package_version
+    version = package_version()
     target.mkdir()
     for filename in ("SVCleaner.toc", "Compat.lua", "Locale.lua", "Core.lua", "Widgets.lua", "Compare.lua", "UI.lua", "LICENSE", "NOTICE"):
         if filename.endswith(".toc"):
@@ -167,9 +173,49 @@ def install(store):
     print(f"Addon installé dans {target}")
 
 
+def choose_wow():
+    """First-run folder picker; Tk and Tcl are included in the Windows bundle."""
+    import tkinter as tk
+    from tkinter import filedialog, messagebox
+
+    window = tk.Tk()
+    window.withdraw()
+    try:
+        while True:
+            selected = filedialog.askdirectory(
+                parent=window, title="SVCleaner — choisissez votre version WoW (ex. _retail_)",
+                mustexist=True,
+            )
+            if not selected:
+                return None
+            root = Path(selected).resolve()
+            if (root / "Interface" / "AddOns").is_dir():
+                return root
+            messagebox.showerror("SVCleaner", "Choisissez le dossier de version contenant Interface/AddOns (ex. _retail_).", parent=window)
+    finally:
+        window.destroy()
+
+
+def preferred_wow():
+    if FROZEN:
+        try:
+            root = Path((HOME / "wow-path.txt").read_text(encoding="utf-8").strip())
+            if (root / "Interface" / "AddOns").is_dir():
+                return root
+        except (OSError, UnicodeError, ValueError):
+            pass
+        return None
+    return DEFAULT_WOW
+
+
 def main():
+    if FROZEN:
+        # Frozen Python ignores PYTHONUTF8; keep redirected diagnostics readable.
+        for stream in (sys.stdout, sys.stderr):
+            if stream is not None and hasattr(stream, "reconfigure"):
+                stream.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description="SVCleaner : gestionnaire local des SavedVariables WoW")
-    parser.add_argument("--wow", default=str(DEFAULT_WOW), help="Dossier de version WoW, par exemple _retail_")
+    parser.add_argument("--wow", help="Dossier de version WoW, par exemple _retail_")
     parser.add_argument("--port", type=int, default=0)
     parser.add_argument("--no-browser", action="store_true")
     parser.add_argument("--manifest", action="store_true", help="Génère Manifest.lua dans le projet, sans modifier WoW")
@@ -181,6 +227,15 @@ def main():
         from demo import demo_root
         args.wow = str(demo_root())
     try:
+        if args.wow is None:
+            args.wow = preferred_wow()
+            if FROZEN and (args.wow is None or not (args.wow / "Interface" / "AddOns").is_dir()) and not any((args.no_browser, args.scan, args.manifest, args.install_addon)):
+                args.wow = choose_wow()
+                if args.wow is None:
+                    return
+                (HOME / "wow-path.txt").write_text(str(args.wow), encoding="utf-8")
+            elif args.wow is None:
+                args.wow = DEFAULT_WOW
         store = Store(args.wow)
         if args.install_addon:
             install(store)

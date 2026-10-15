@@ -1,0 +1,2 @@
+# Build dependencies only; end users run the bundled executable without Python.
+PyInstaller==6.22.3

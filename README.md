@@ -33,7 +33,7 @@
   <tr>
     <td width="50%" valign="top">
       <h3>01 &nbsp; Choose your WoW version</h3>
-      <p>Run <code>Lancer-SVCleaner.cmd</code>. The companion opens your browser and lists the game versions found in your installation.</p>
+      <p>Download the Windows portable companion, extract the ZIP and run <code>SVCleaner.exe</code>. Choose your WoW client folder when prompted. The companion opens your browser.</p>
       <p>Choose your client in the <strong>WoW version</strong> selector. The inventory and backups belong to that client folder.</p>
     </td>
     <td width="50%" valign="top">
@@ -67,13 +67,42 @@ Install SV Cleaner directly from [CurseForge](https://www.curseforge.com/wow/add
 
 ### Local companion
 
-With Python **3.10 or newer**, double-click **`Lancer-SVCleaner.cmd`**, or specify your game client folder:
+**Windows 10/11 (64-bit): no installation required.** Download
+`SVCleaner-Companion-<version>-windows-x64.zip` from
+[GitHub Releases](https://github.com/Neogeekmo/SVCleaner/releases), extract the **entire ZIP**
+into a writable folder, then double-click **`SVCleaner.exe`**. Python and the browser
+interface are included. Keep the `_internal` folder beside the executable.
+
+On first launch, choose the WoW client folder containing `Interface/AddOns`
+(for example `_retail_` or `_classic_`). The path is saved in `wow-path.txt`;
+delete that file to choose again. You can also specify a folder explicitly:
+
+```powershell
+.\SVCleaner.exe --wow "D:\Jeux\World of Warcraft\_retail_"
+```
+
+The companion listens on **`127.0.0.1`** and opens your browser. Your data stays on
+your PC. Keep its console open; press **Ctrl+C** to stop the server and discard
+pending changes that have not been applied. `Lancer-SVCleaner.cmd` also launches
+the executable and keeps errors visible if startup fails.
+
+Backups and history are stored in **`data/` beside the executable**. Preserve this
+folder when updating; extract the new version into the same folder or copy your
+existing `data/` and `wow-path.txt` into the new one.
+
+To try the portable application with isolated sample data:
+
+```powershell
+.\SVCleaner.exe --demo
+```
+
+**From source (Python 3.10+):** use `Lancer-SVCleaner.cmd` in the source archive or:
 
 ```powershell
 python companion/app.py --wow "D:\Jeux\World of Warcraft\_retail_"
 ```
 
-The companion uses Python's standard library, listens on **`127.0.0.1`**, and opens your browser. Your data stays on your PC. Press **Ctrl+C** in its console to stop the server and discard pending changes that have not been applied.
+The source version uses Python's standard library and needs no third-party runtime packages.
 
 The companion interface is currently in **French**. The steps below describe its actions in English.
 
@@ -224,6 +253,8 @@ The addon follows WoW's language: **English, French, German, European and Latin 
 | `/svc` or `/svcleaner` | Open or close the in-game interface |
 | `python companion/app.py --wow "…"` | Open the companion for the specified game client folder |
 | `python companion/app.py --demo` | Try the companion with sample data |
+| `.\SVCleaner.exe --wow "…"` | Open the Windows portable companion without installing Python |
+| `.\SVCleaner.exe --demo` | Try the portable companion with sample data |
 
 ## Development, CI and releases
 
@@ -242,6 +273,28 @@ with their source changes. The addon archive contains only runtime Lua, all eigh
 TOCs, TGA textures, `LICENSE` and `NOTICE`. The separate companion archive includes
 its Python scripts, browser UI, Windows launcher and addon installer; it requires
 Python 3.10+ and ships no user data or backups.
+
+To build the **Windows portable ZIP**, use Windows and a 64-bit x86 Python with
+Tcl/Tk (CI uses Python 3.12), preferably in a dedicated virtual environment:
+
+```powershell
+py -3.12 -m venv .venv-packaging
+.\.venv-packaging\Scripts\python.exe -m pip install -r requirements-packaging.txt
+.\.venv-packaging\Scripts\python.exe tools/package_companion.py --version v1.0.0
+python tools/verify_companion.py output/SVCleaner-Companion-v1.0.0-windows-x64.zip
+```
+
+The packager uses [PyInstaller](https://pyinstaller.org/en/stable/) in one-folder mode,
+includes the UI, addon runtime and license notices, and writes a ZIP plus a SHA-256
+checksum in `output/`. It packages a fresh build only, excluding user settings and
+backups. The verifier runs the extracted executable without Python on `PATH`,
+checks CLI, demo and HTTP assets, installs the addon into a synthetic WoW folder,
+and verifies backup/restore across a restart. Close WoW before running this full
+test; `--read-only` checks startup and HTTP assets while a game client is running.
+
+CI builds and tests this portable package on Windows. The tag release workflow
+attaches that tested ZIP to GitHub Releases alongside the Python source archive.
+Before a release, the ZIP is also available as the `companion-windows-x64` Actions artifact.
 
 ## License
 

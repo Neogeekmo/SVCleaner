@@ -15,8 +15,8 @@ from pathlib import Path
 
 from lua_data import DataError, Table, at, differences, dump, identity, kind, literal, merge_values, parse, preview, safe_path, token, untoken
 from flavors import detect_client, toc_candidates
+from runtime import DATA, HOME
 
-PROJECT = Path(__file__).resolve().parent.parent
 DEFAULT_WOW = Path(r"D:\Jeux\World of Warcraft\_retail_")
 CHAR_GUID = re.compile(r"^(.*?)?-?(Player-\d+-[0-9a-fA-F]+)$")
 IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z_0-9]*$")
@@ -88,7 +88,7 @@ class Store:
         self.root = Path(root).resolve()
         if not (self.root / "Interface" / "AddOns").is_dir():
             raise DataError("Choisissez un dossier de version WoW contenant Interface/AddOns (par exemple _retail_)")
-        self.data_dir = Path(data_dir or PROJECT / "data" / digest(str(self.root).encode())[:12])
+        self.data_dir = Path(data_dir or DATA / digest(str(self.root).encode())[:12])
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.lock = threading.RLock()
         self.records = {}
@@ -628,8 +628,8 @@ class Store:
             return self.state()
 
     def manifest(self, destination=None):
-        # Export into the workspace by default. Installation is an explicit CLI action.
-        destination = Path(destination or PROJECT / "Manifest.lua")
+        # Keep exports beside the executable, outside bundled resources.
+        destination = Path(destination or HOME / "Manifest.lua")
         table = Table()
         for addon in self.addons.values():
             node = Table()

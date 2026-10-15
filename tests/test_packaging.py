@@ -1,10 +1,11 @@
 """Exercise client selection and the real archive contract without touching WoW."""
 import sys
+import runpy
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from zipfile import ZipFile
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -100,9 +101,78 @@ class PackageTests(unittest.TestCase):
             (root / "Interface" / "AddOns").mkdir(parents=True)
             command = [sys.executable, str(project / "companion" / "app.py"), "--wow", str(root)]
             subprocess.run(command + ["--scan"], cwd=directory, capture_output=True, text=True, check=True, timeout=30)
-            subprocess.run(command + ["--install-addon"], cwd=directory, capture_output=True, text=True, check=True, timeout=30)
+            # Isolate the synthetic install from game clients on the developer's PC.
+            # Production process guards are exercised separately in test_service.
+            driver = "import sys, runpy; from pathlib import Path; from unittest.mock import patch; app = sys.argv[1]; sys.path.insert(0, str(Path(app).parent)); sys.argv = sys.argv[1:]; guard = patch('service.check_game_closed'); guard.start(); runpy.run_path(app, run_name='__main__')"
+            subprocess.run([sys.executable, "-c", driver] + command[1:] + ["--install-addon"], cwd=directory, capture_output=True, text=True, check=True, timeout=30)
             installed = root / "Interface" / "AddOns" / "SVCleaner"
             self.assertIn("## Version: v1.2.3", (installed / "SVCleaner.toc").read_text(encoding="utf-8"))
+            self.assertEqual({p.relative_to(installed).as_posix() for p in installed.rglob("*") if p.is_file()}, {p.relative_to(ROOT).as_posix() for p in runtime_files()} | set(flavor_tocs()))
+
+    def test_frozen_paths_keep_resources_and_persistent_data_separate(self):
+        with tempfile.TemporaryDirectory(prefix="svc-paths-") as temporary:
+            home = Path(temporary)
+            resources = home / "_internal"
+            with patch.object(sys, "frozen", True, create=True), patch.object(sys, "_MEIPASS", str(resources), create=True), patch.object(sys, "executable", str(home / "SVCleaner.exe")):
+                runtime = runpy.run_path(str(ROOT / "companion" / "runtime.py"))
+            self.assertEqual(runtime["PROJECT"], resources)
+            self.assertEqual(runtime["HOME"], home)
+            self.assertEqual(runtime["DATA"], home / "data")
+
+    def test_portable_remembers_valid_wow_path_and_ignores_corrupt_settings(self):
+        from app import preferred_wow
+        with tempfile.TemporaryDirectory(prefix="svc-settings-") as temporary:
+            home = Path(temporary)
+            root = home / "_classic_era_"
+            (root / "Interface" / "AddOns").mkdir(parents=True)
+            settings = home / "wow-path.txt"
+            with patch("app.FROZEN", True), patch("app.HOME", home), patch("app.DEFAULT_WOW", home / "default"):
+                settings.write_text(str(root), encoding="utf-8")
+                self.assertEqual(preferred_wow(), root)
+                settings.write_bytes(b"\xff")
+                self.assertIsNone(preferred_wow())
+
+    def test_portable_first_launch_saves_picker_choice_and_starts_server(self):
+        from app import main
+        with tempfile.TemporaryDirectory(prefix="svc-first-run-") as temporary:
+            home = Path(temporary)
+            root = home / "_retail_"
+            (root / "Interface" / "AddOns").mkdir(parents=True)
+            server = MagicMock(server_port=12345)
+            server.serve_forever.side_effect = KeyboardInterrupt
+            with patch("app.FROZEN", True), patch("app.HOME", home), patch("app.preferred_wow", return_value=home / "missing"), patch("app.choose_wow", return_value=root) as picker, patch("app.Store") as store, patch("app.create_server", return_value=server), patch("app.threading.Timer"), patch.object(sys, "argv", ["SVCleaner.exe"]):
+                main()
+            picker.assert_called_once()
+            store.assert_called_once_with(root)
+            self.assertEqual((home / "wow-path.txt").read_text(encoding="utf-8"), str(root))
+            server.server_close.assert_called_once()
+
+    def test_portable_first_launch_cancellation_exits_without_server(self):
+        from app import main
+        with tempfile.TemporaryDirectory(prefix="svc-cancel-") as temporary:
+            home = Path(temporary)
+            with patch("app.FROZEN", True), patch("app.HOME", home), patch("app.preferred_wow", return_value=home / "missing"), patch("app.choose_wow", return_value=None), patch("app.Store") as store, patch.object(sys, "argv", ["SVCleaner.exe"]):
+                main()
+            store.assert_not_called()
+            self.assertFalse((home / "wow-path.txt").exists())
+
+    def test_frozen_installer_uses_versioned_bundled_files(self):
+        from app import install
+        with tempfile.TemporaryDirectory(prefix="svc-frozen-install-") as temporary:
+            directory = Path(temporary)
+            resources = directory / "_internal"
+            with ZipFile(build(directory / "addon.zip", version="v1.2.3")) as archive:
+                archive.extractall(resources)
+            (resources / "SVCleaner").rename(resources / "addon")
+            root = directory / "_retail_"
+            (root / "Interface" / "AddOns").mkdir(parents=True)
+            store = Store(root, directory / "data")
+            with patch("app.FROZEN", True), patch("app.PROJECT", resources), patch("app.check_game_closed"):
+                install(store)
+            installed = root / "Interface" / "AddOns" / "SVCleaner"
+            for toc in installed.glob("*.toc"):
+                self.assertIn("## Version: v1.2.3", toc.read_text(encoding="utf-8"))
+            self.assertIn("SVC.Manifest", (installed / "Manifest.lua").read_text())
             self.assertEqual({p.relative_to(installed).as_posix() for p in installed.rglob("*") if p.is_file()}, {p.relative_to(ROOT).as_posix() for p in runtime_files()} | set(flavor_tocs()))
 
     def test_archive_contains_only_runtime_and_all_flavor_tocs(self):
