@@ -5,6 +5,7 @@
 - Création de clés typées, valeurs et tables vides dans les deux interfaces.
 - Import des suppressions de tables avec instantané et détection des demandes déjà appliquées.
 - Traductions du nouveau workflow dans les onze catalogues.
+- Onglet CVars : recherche par nom, description et valeur, préparation d’une édition ou du retour au défaut, application et vérification avec reload ; prise en charge des API modernes et historiques.
 
 # SVCleaner 0.1.0
 

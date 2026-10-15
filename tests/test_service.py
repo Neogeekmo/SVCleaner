@@ -333,6 +333,16 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(len(result["skipped"]), 1)
         self.assertFalse(self.store.pending)
 
+    def test_import_cvars_explains_they_must_be_applied_in_game(self):
+        (self.sv / "SVCleaner.lua").write_text('''SVCleanerDB = { requests = {
+            { kind="cvar", addon="SVCleaner", root="Sound_EnableAllSound", scope="cvar", operation="edit", value="0", path={} }
+        } }''')
+        self.store.scan()
+        result = self.store.import_requests()
+        self.assertEqual(result["imported"], 0)
+        self.assertIn("onglet CVars en jeu", result["skipped"][0])
+        self.assertFalse(self.store.pending)
+
     def test_bak_edit_rejected(self):
         r = next(r for r in self.store.records.values() if r["backup"])
         with self.assertRaises(DataError):

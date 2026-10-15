@@ -16,6 +16,15 @@ function SVC.Compat:GetAddOnAPI()
     return api
 end
 
+function SVC.Compat:GetCVarAPI()
+    local api = {}
+    for _, name in ipairs({"GetCVar", "GetCVarInfo", "GetCVarDefault", "SetCVar"}) do
+        local modern = C_CVar and C_CVar[name]
+        api[name] = type(modern) == "function" and modern or type(_G[name]) == "function" and _G[name] or nil
+    end
+    return api
+end
+
 function SVC.Compat:PlayerIdentity()
     local name, realm
     if type(UnitFullName) == "function" then name, realm = UnitFullName("player") end

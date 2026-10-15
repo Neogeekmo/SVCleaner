@@ -144,11 +144,18 @@ Both interfaces offer **light and dark themes**. The addon window can be moved a
 | Explore variables | Accessible data from loaded addons | Files in the selected WoW client folder |
 | Inspect other characters | Character blocks in loaded account-wide variables | Character folders and account-wide variables |
 | Create, edit, delete, or copy | Prepare, apply to loaded data and reload; verify results | Prepare, back up and apply file changes without launching WoW |
+| Search and edit CVars | Search names, descriptions and values; prepare changes or defaults, apply and reload | CVar requests remain in game |
 | Identify orphaned files | — | Match files against installed addons |
 | Measure storage | Bounded estimates of loaded data | Actual bytes, charts, and history |
 | Maintain caches | Command and settings guidance | Rename a cache folder with restore support |
 
 A **disabled but installed** addon is still installed. A file declared by another addon is marked as **linked / needs review**. Blizzard data and SV Cleaner's own data are protected.
+
+### In-game CVars
+
+Open the **CVars** tab to search the current client's console variables by name, description or current value. Select a row to inspect its current and default values. Enter a new value and choose **Prepare**, or choose **Prepare default value**. Review the request, then use **Apply and reload**, together with any prepared SavedVariables changes. The addon checks for conflicts, reads each CVar back after setting it, and checks it again after reload.
+
+Variables reported as locked, secure or read-only remain visible but cannot be edited. When console enumeration is unavailable, enter an exact CVar name to look it up. Some CVars require a full game restart or are stored on Blizzard's servers; they are applied only in game. The implementation uses the client's [CVar API declarations](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_APIDocumentationGenerated/CVarDocumentation.lua) and [console variable enumeration](https://github.com/Gethe/wow-ui-source/blob/live/Interface/AddOns/Blizzard_APIDocumentationGenerated/ConsoleDocumentation.lua), with legacy API fallbacks.
 
 ## Characters and comparison
 

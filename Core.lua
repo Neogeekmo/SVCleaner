@@ -185,7 +185,8 @@ function SVC:Equal(a, b)
     return true
 end
 
-function SVC:RequestTarget(request)
+function SVC:RequestTarget(request, verifying)
+    if type(request) == "table" and request.kind == "cvar" then return self:CVarTarget(request, verifying) end
     if type(request) ~= "table" or type(request.root) ~= "string" or type(request.addon) ~= "string"
         or request.addon == ADDON or request.addon:match("^Blizzard_") or request.root == "SVCleanerDB"
         or (request.scope ~= "account" and request.scope ~= "character") then return nil, L.UNAVAILABLE end
@@ -210,6 +211,64 @@ function SVC:RequestTarget(request)
     end
     if type(parent) ~= "table" or self:Protected(request.root, path) then return nil, L.UNAVAILABLE end
     return {parent = parent, key = key, old = rawget(parent, key)}
+end
+
+function SVC:ReadCVar(name)
+    if type(name) ~= "string" or not name:match("^[%w_]+$") then return nil end
+    local api = self.Compat:GetCVarAPI()
+    if not api.GetCVar then return nil end
+    local ok, value = pcall(api.GetCVar, name)
+    if not ok or type(value) ~= "string" or issecretvalue and issecretvalue(value) then return nil end
+    local default, locked, secure, readOnly
+    if api.GetCVarInfo then
+        local info, _, def, _, _, lock, sec, ro = pcall(api.GetCVarInfo, name)
+        if info then default, locked, secure, readOnly = def, lock, sec, ro end
+    end
+    if default == nil and api.GetCVarDefault then local got, def = pcall(api.GetCVarDefault, name); if got then default = def end end
+    return {name = name, value = value, default = default, readOnly = not api.SetCVar or not not (locked or secure or readOnly)}
+end
+
+function SVC:CVarTarget(request, verifying)
+    local name, realm = self.Compat:PlayerIdentity()
+    if request.character ~= name .. " - " .. realm then return nil, L.UNAVAILABLE end
+    local info = self:ReadCVar(request.root)
+    if not info or info.readOnly and not verifying then return nil, L.CVAR_LOCKED end
+    return {cvar = request.root, old = info.value, key = request.root}
+end
+
+function SVC:QueueCVar(name, value)
+    if type(value) ~= "string" or #value > 32768 or value:find("%z") then return false, L.CVAR_FAILED end
+    local info = self:ReadCVar(name)
+    if not info or info.readOnly then return false, L.CVAR_LOCKED end
+    local player, realm = self.Compat:PlayerIdentity()
+    local slot = #self.pending + 1
+    for i, request in ipairs(self.pending) do
+        if request.kind == "cvar" and request.root:lower() == name:lower() and request.character == player .. " - " .. realm then slot = i; break end
+    end
+    self.pending[slot] = {kind = "cvar", addon = ADDON, root = name, scope = "cvar", path = {}, operation = "edit",
+        value = value, expectedType = "string", expectedValue = info.value, character = player .. " - " .. realm, created = time()}
+    SVCleanerDB.requests = self.pending
+    return true
+end
+
+function SVC:CVarMatches(actual, desired)
+    if actual == desired then return true end
+    local a, b = tonumber(actual), tonumber(desired)
+    return a ~= nil and b ~= nil and a == b
+end
+
+function SVC:WriteTarget(target, value)
+    if not target.cvar then rawset(target.parent, target.key, value); return true end
+    local setter = self.Compat:GetCVarAPI().SetCVar
+    if not setter then return false end
+    local ok, result = pcall(setter, target.cvar, value)
+    local info = self:ReadCVar(target.cvar)
+    return ok and result ~= false and info ~= nil and self:CVarMatches(info.value, value)
+end
+
+function SVC:PendingWarning()
+    for _, request in ipairs(self.pending) do if request.kind == "cvar" then return L.PENDING_WARNING .. "\n\n" .. L.CVAR_HINT end end
+    return L.PENDING_WARNING
 end
 
 function SVC:Queue(row, path, operation, value)
@@ -264,7 +323,7 @@ function SVC:ApplyPending()
     for _, request in ipairs(self.pending) do
         for _, change in ipairs(changes) do
             local other = change.request
-            if other.root == request.root then
+            if other.kind == request.kind and other.root == request.root then
                 local prefix = true
                 for i = 1, math.min(#other.path, #request.path) do
                     if other.path[i].type ~= request.path[i].type or other.path[i].value ~= request.path[i].value then prefix = false end
@@ -285,27 +344,39 @@ function SVC:ApplyPending()
         elseif request.operation ~= "delete-value" then return false, L.UNAVAILABLE end
         if request.operation ~= "delete-value" then
             local valid = self:Snapshot(request.value)
-            if not valid or self:IsIdentity(target.key, request.value) then return false, L.TYPE_ID end
+            if not valid or not target.cvar and self:IsIdentity(target.key, request.value) then return false, L.TYPE_ID end
         end
+        if target.cvar and (request.operation ~= "edit" or type(request.value) ~= "string" or request.value:find("%z")) then return false, L.CVAR_FAILED end
         changes[#changes + 1] = {target = target, request = request}
     end
-    -- No addon callback runs between preflight and these raw assignments.
+    -- SavedVariables use raw assignments; CVar writes are checked by reading them back.
+    local applied = {}
+    local function rollback()
+        local restored = true
+        for i = #applied, 1, -1 do
+            local change = applied[i]
+            if not self:WriteTarget(change.target, change.target.old) then restored = false end
+            change.request.verify, change.request.status = nil, nil
+        end
+        return restored
+    end
     for _, change in ipairs(changes) do
         local value = change.request.value
         if type(value) == "table" then local _, copied = self:Snapshot(value); value = copied end
         if change.request.operation == "delete-value" then value = nil end
-        rawset(change.target.parent, change.target.key, value)
+        applied[#applied + 1] = change
+        if not self:WriteTarget(change.target, value) then
+            local restored = rollback()
+            return false, restored and L.CVAR_FAILED or L.ROLLBACK_FAILED
+        end
         change.request.verify, change.request.status = true, "awaiting-reload"
     end
     self.reloading = true
     local ok = pcall(ReloadUI)
     if not ok then
         self.reloading = nil
-        for i = #changes, 1, -1 do
-            local change = changes[i]; rawset(change.target.parent, change.target.key, change.target.old)
-            change.request.verify, change.request.status = nil, nil
-        end
-        return false, L.RELOAD_FAILED
+        local restored = rollback()
+        return false, restored and L.RELOAD_FAILED or L.ROLLBACK_FAILED
     end
     return true
 end
@@ -315,19 +386,24 @@ function SVC:VerifyPending()
     SVCleanerDB.lastApplication = SVCleanerDB.lastApplication or {}
     for _, request in ipairs(self.pending) do
         if request.verify then
-            local target, err = self:RequestTarget(request)
+            local target, err = self:RequestTarget(request, true)
             local name, realm = self.Compat:PlayerIdentity()
-            local deferred = err == L.NOT_LOADED or request.scope == "character" and request.character ~= name .. " - " .. realm
+            local deferred = err == L.NOT_LOADED or (request.scope == "character" or request.kind == "cvar") and request.character ~= name .. " - " .. realm
             if not deferred then
                 local ok, current = false, nil
                 if target then ok, current = self:Snapshot(target.old) end
                 local desired = request.value
                 if request.operation == "delete-value" then desired = nil end
-                local matched = ok and self:Equal(current, desired)
+                local matched = ok and (request.kind == "cvar" and self:CVarMatches(current, desired) or self:Equal(current, desired))
                 request.verify, request.status = nil, matched and "verified" or "mismatch"
                 checked = checked + 1
                 if not matched then failed = failed + 1 end
-                table.insert(SVCleanerDB.lastApplication, 1, request)
+                -- Keep a compact result, not a second copy of a deleted database.
+                local before = request.expectedValue
+                if request.expectedType == "table" then before = request.expectedSnapshot end
+                table.insert(SVCleanerDB.lastApplication, 1, {addon = request.addon, root = request.root, path = request.path,
+                    operation = request.operation, kind = request.kind, status = request.status, checked = time(),
+                    before = self:Preview(before), desired = self:Preview(desired), observed = ok and self:Preview(current) or L.UNAVAILABLE})
                 if #SVCleanerDB.lastApplication > 100 then table.remove(SVCleanerDB.lastApplication) end
                 if not matched then remaining[#remaining + 1] = request end
             else request.status = "deferred"; remaining[#remaining + 1] = request end
@@ -424,6 +500,7 @@ events:RegisterEvent("ADDON_LOADED")
 events:RegisterEvent("PLAYER_LOGIN")
 events:RegisterEvent("PLAYER_REGEN_DISABLED")
 events:RegisterEvent("PLAYER_LOGOUT")
+events:RegisterEvent("CVAR_UPDATE")
 events:SetScript("OnEvent", function(_, event, name)
     if event == "ADDON_LOADED" and name == ADDON then
         SVCleanerDB = SVCleanerDB or {}
@@ -443,7 +520,10 @@ events:SetScript("OnEvent", function(_, event, name)
     elseif event == "ADDON_LOADED" and SVC.loggedIn then
         SVC.Compat:NextFrame(function() SVC:VerifyPending() end)
     elseif event == "PLAYER_LOGOUT" and #SVC.pending > 0 and not SVC.reloading then
-        print("SVCleaner: " .. L.PENDING_WARNING)
+        print("SVCleaner: " .. SVC:PendingWarning())
+    elseif event == "CVAR_UPDATE" and SVC.activePage == "cvars" and not SVC.cvarRefreshQueued then
+        SVC.cvarRefreshQueued = true
+        SVC.Compat:NextFrame(function() SVC.cvarRefreshQueued = nil; if SVC.RefreshCVars then SVC:RefreshCVars() end end)
     elseif event == "PLAYER_REGEN_DISABLED" and SVC.frame then
         SVC.frame:Hide()
     end

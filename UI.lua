@@ -142,12 +142,92 @@ end
 
 function SVC:WarnPending()
     if #self.pending==0 or self.reloading then return end
-    print("SVCleaner: "..L.PENDING_WARNING)
+    local warning = self:PendingWarning()
+    print("SVCleaner: "..warning)
     if StaticPopupDialogs and StaticPopup_Show then
-        StaticPopupDialogs.SVCLEANER_PENDING={text=L.PENDING_WARNING,button1=L.CLOSE,
+        StaticPopupDialogs.SVCLEANER_PENDING={text=warning,button1=L.CLOSE,
             timeout=0,whileDead=1,hideOnEscape=1}
         StaticPopup_Show("SVCLEANER_PENDING")
     end
+end
+
+function SVC:DiscoverCVars()
+    self.cvarNames = {}
+    if type(ConsoleGetAllCommands) == "function" then
+        local ok, commands = pcall(ConsoleGetAllCommands)
+        if ok and type(commands) == "table" then
+            local seen = {}
+            for _, command in ipairs(commands) do
+                if type(command.command) == "string" and command.commandType == (Enum and Enum.ConsoleCommandType and Enum.ConsoleCommandType.Cvar or 0) and not seen[command.command:lower()] then
+                    seen[command.command:lower()] = true
+                    self.cvarNames[#self.cvarNames + 1] = {name = command.command, help = command.help or ""}
+                end
+            end
+        end
+    end
+    table.sort(self.cvarNames, function(a,b) return a.name:lower() < b.name:lower() end)
+    self:RefreshCVars()
+end
+
+function SVC:RefreshCVars()
+    if not self.cvarList then return end
+    local items, query, found = {}, self:Fold(self.cvarQuery), false
+    local names = self.cvarNames or {}
+    -- Exact lookup remains usable on clients without console enumeration.
+    local candidates = {}; for _, entry in ipairs(names) do candidates[#candidates + 1] = entry end
+    for _, entry in ipairs(names) do if entry.name:lower() == query then found = true end end
+    if not found and query:match("^[%w_]+$") then candidates[#candidates + 1] = {name = self.cvarQuery, help = ""} end
+    for _, entry in ipairs(candidates) do
+        local info = self:ReadCVar(entry.name)
+        if info and self:Fold(entry.name .. " " .. entry.help .. " " .. info.value):find(query,1,true) then
+            info.help = entry.help
+            for _, request in ipairs(self.pending) do
+                local player, realm = self.Compat:PlayerIdentity()
+                if request.kind == "cvar" and request.root:lower() == info.name:lower() and request.character == player .. " - " .. realm then info.prepared = request.value; break end
+            end
+            items[#items + 1] = info
+        end
+    end
+    self.cvarList:SetItems(items,true)
+    self.cvarCount:SetText(string.format(L.CVAR_COUNT,#items))
+    if self.cvarSelection then
+        local current = self:ReadCVar(self.cvarSelection.name)
+        self.cvarApply:SetEnabled(current ~= nil and not current.readOnly)
+        self.cvarEditor:SetEnabled(current ~= nil and not current.readOnly)
+        self.cvarDefault:SetEnabled(current ~= nil and not current.readOnly and current.default ~= nil)
+        if current then
+            self.cvarOriginal:SetText(current.value)
+            self.cvarDefaultLabel:SetText(L.CVAR_DEFAULT .. ": " .. (current.default or L.UNAVAILABLE))
+        end
+    end
+end
+
+function SVC:SelectCVar(item)
+    self.cvarSelection = item
+    self.cvarTitle:SetText(item.name)
+    self.cvarDescription:SetText(item.help ~= "" and item.help or L.CVAR_HINT)
+    self.cvarOriginal:SetText(item.value)
+    self.cvarDefaultLabel:SetText(L.CVAR_DEFAULT .. ": " .. (item.default or L.UNAVAILABLE))
+    self.cvarEditor:SetText(item.prepared ~= nil and item.prepared or item.value)
+    self.cvarEditor:SetEnabled(not item.readOnly)
+    self.cvarApply:SetEnabled(not item.readOnly)
+    self.cvarDefault:SetEnabled(not item.readOnly and item.default ~= nil)
+end
+
+function SVC:PrepareCVar(useDefault)
+    local item = self.cvarSelection
+    if not item then return end
+    local current = self:ReadCVar(item.name)
+    if not current or current.readOnly then self:Notice(L.CVAR_LOCKED); return end
+    local value = self.cvarEditor:GetText()
+    if useDefault then value = current.default end
+    if value == nil then self:Notice(L.UNAVAILABLE); return end
+    self:Review(L.CVARS .. " / " .. item.name,current.value,value,function()
+        local latest = self:ReadCVar(item.name)
+        if not latest or latest.value ~= current.value then self:Notice(L.CONFLICT); return end
+        local ok,err = self:QueueCVar(item.name,value)
+        self:Notice(ok and L.QUEUED or err); self:Refresh(); self:RefreshCVars()
+    end)
 end
 function SVC:QueueSelection(operation)
     local item,row=self.editSelection,self.selected; if not item or not row then self:Notice(L.SELECT_VALUE); return end
@@ -165,16 +245,22 @@ function SVC:QueueSelection(operation)
     end)
 end
 function SVC:ShowPage(id)
-    self.activePage=id; self.dataPage:SetShown(id=="data"); self.diff:SetShown(id=="compare"); self.overlay:SetShown(id=="guide" or id=="companion" or id=="requests")
+    self.activePage=id; self.dataPage:SetShown(id=="data"); self.diff:SetShown(id=="compare"); self.cvarPage:SetShown(id=="cvars"); self.overlay:SetShown(id=="guide" or id=="companion" or id=="requests")
     for key,button in pairs(self.tabs) do UI:Active(button,key==id) end
     if UI.menu then UI.menu:Hide() end
     if id=="compare" then self:RefreshDiff()
+    elseif id=="cvars" then self:DiscoverCVars()
     elseif id=="guide" then self.guideTitle:SetText(L.CACHES); self.guideText:SetText(table.concat({L.GUIDE_RELOAD,L.GUIDE_GX,L.GUIDE_GC,L.GUIDE_DISK,L.GUIDE_SETTINGS,L.GUIDE_NOTE},"\n\n"))
     elseif id=="companion" then self.guideTitle:SetText(L.COMPANION); self.guideText:SetText(L.COMPANION_GUIDE)
     elseif id=="requests" then
         self.guideTitle:SetText(string.format(L.REQUEST_COUNT,#self.pending)); local lines={L.REQUEST_HINT}
-        for _,request in ipairs(self.pending) do local path={}; for i,k in ipairs(request.path) do path[i]=k.value end; lines[#lines+1]=request.addon.." / "..request.root.." / "..pathText(path).."\n"..(request.operation=="create" and L.CREATE or request.operation=="edit" and L.EDIT or L.DELETE)..": "..tostring(request.expectedValue).." -> "..(request.operation~="delete-value" and self:Preview(request.value) or L.MISSING).."\n"..(request.status and L["RESULT_"..request.status:upper():gsub("-","_")] or L.PREPARED) end
-        for _,request in ipairs(SVCleanerDB.lastApplication or {}) do lines[#lines+1]=request.root.." · "..(L["RESULT_"..request.status:upper():gsub("-","_")]) end
+        for _,request in ipairs(self.pending) do if request.kind=="cvar" then lines[#lines+1]=L.CVAR_HINT; break end end
+        for _,request in ipairs(self.pending) do local path={}; for i,k in ipairs(request.path) do path[i]=k.value end; lines[#lines+1]=(request.kind=="cvar" and L.CVARS or request.addon).." / "..request.root.." / "..pathText(path).."\n"..(request.operation=="create" and L.CREATE or request.operation=="edit" and L.EDIT or L.DELETE)..": "..tostring(request.expectedValue).." -> "..(request.operation~="delete-value" and self:Preview(request.value) or L.MISSING).."\n"..(request.status and L["RESULT_"..request.status:upper():gsub("-","_")] or L.PREPARED) end
+        for _,request in ipairs(SVCleanerDB.lastApplication or {}) do
+            local path={}; for i,k in ipairs(request.path or {}) do path[i]=k.value end
+            lines[#lines+1]=request.root.." / "..pathText(path).." · "..L["RESULT_"..request.status:upper():gsub("-","_")]
+                .."\n"..L.ORIGINAL..": "..(request.before or "").."\n"..L.NEW_VALUE..": "..(request.desired or "").."\n"..L.VALUE..": "..(request.observed or "")
+        end
         self.guideText:SetText(table.concat(lines,"\n\n"))
     end
 end
@@ -186,7 +272,17 @@ function SVC:Layout()
     place(self.metrics,self.frame,16,106,inner,34)
     self.metric:SetWidth(inner*.45); self.loadedCount:SetPoint("LEFT",self.metrics,"LEFT",inner*.46,0)
     self.queueCount:SetPoint("RIGHT",self.metrics,"RIGHT",-12,0)
-    for _,page in ipairs({self.dataPage,self.diff,self.overlay}) do place(page,self.frame,16,150,inner,h-204) end
+    for _,page in ipairs({self.dataPage,self.diff,self.overlay,self.cvarPage}) do place(page,self.frame,16,150,inner,h-204) end
+    place(self.cvarSearch,self.cvarPage,16,14,inner-210,28); place(self.cvarCount,self.cvarPage,inner-180,18,164,22)
+    place(self.cvarHint,self.cvarPage,16,50,inner-32,36)
+    place(self.cvarList,self.cvarPage,16,92,inner-32,h-536)
+    place(self.cvarTitle,self.cvarPage,16,h-430,inner-32,22)
+    place(self.cvarDescription,self.cvarPage,16,h-403,inner-32,38)
+    place(self.cvarOriginal,self.cvarPage,16,h-358,inner*.38-24,70)
+    place(self.cvarEditor,self.cvarPage,inner*.38,h-358,inner*.62-16,28)
+    place(self.cvarDefaultLabel,self.cvarPage,inner*.38,h-324,inner*.62-16,22)
+    place(self.cvarApply,self.cvarPage,inner*.38,h-292,160,28)
+    place(self.cvarDefault,self.cvarPage,inner*.38+168,h-292,240,28)
     local widths={inner*.27,inner*.24,inner*.19,inner*.17,inner*.10}; local controls={self.search,self.addonFilter,self.stateFilter,self.scopeFilter,self.reset}; local x=0
     for i,c in ipairs(controls) do place(c,self.dataPage,x,0,widths[i],26); x=x+widths[i]+6 end
     local catalogWidth=220; local treeX=catalogWidth+12; local treeWidth=inner-treeX
@@ -232,12 +328,26 @@ function SVC:CreateUI()
     local theme=UI:Button(header,L.THEME,140,function() SVCleanerDB.theme=SVCleanerDB.theme=="dark" and "light" or "dark"; UI:Theme(); self:ShowPage(self.activePage or "data") end); theme:SetPoint("TOPRIGHT",-66,-16)
     local close=UI:IconButton(header,3,L.CLOSE,function() frame:Hide() end); close:SetPoint("TOPRIGHT",-20,-16)
     self.tabs={}; local x=16
-    for _,def in ipairs({{"data",L.DATA},{"compare",L.COMPARE},{"guide",L.CACHES},{"companion",L.COMPANION},{"requests",L.REQUESTS}}) do
+    for _,def in ipairs({{"data",L.DATA},{"compare",L.COMPARE},{"guide",L.CACHES},{"companion",L.COMPANION},{"requests",L.REQUESTS},{"cvars",L.CVARS}}) do
         local id=def[1]; local tab=UI:Button(frame,def[2],154,function() self:ShowPage(id) end); tab:SetPoint("TOPLEFT",x,-66); self.tabs[id]=tab; x=x+160
     end
     self.metrics=UI:Panel(frame); self.metric=UI:Text(self.metrics,"",11,"muted"); self.metric:SetPoint("LEFT",12,0)
     self.loadedCount=UI:Text(self.metrics,"",11,"muted"); self.queueCount=UI:Text(self.metrics,"",11,"accent")
     self.dataPage=CreateFrame("Frame",nil,frame); self.overlay=UI:Panel(frame); self.diff=UI:Panel(frame)
+    self.cvarPage=UI:Panel(frame)
+    self.cvarSearch=UI:Input(self.cvarPage,600,"",function(value) self.cvarQuery=value; self.cvarList.offset=0; self:RefreshCVars() end); self.cvarSearch.placeholder:SetText(L.CVAR_SEARCH)
+    self.cvarCount=UI:Text(self.cvarPage,"",11,"muted"); self.cvarHint=UI:Text(self.cvarPage,L.CVAR_HINT,11,"muted")
+    self.cvarList=UI:Grid(self.cvarPage,{{label=L.NAME,width=.32},{label=L.VALUE,width=.24},{label=L.CVAR_DEFAULT,width=.24},{label=L.STATUS,width=.20}},function(button,item)
+        button.cells[1]:SetText(UI:Display(item.name)); button.cells[2]:SetText(UI:Display(item.value)); button.cells[3]:SetText(UI:Display(item.default or L.UNAVAILABLE))
+        button.cells[4]:SetText(item.readOnly and L.READ_ONLY or item.prepared~=nil and L.PREPARED or "")
+        button:SetScript("OnClick",function() self:SelectCVar(item) end)
+        UI:Tooltip(button,function() return item.name.."\n"..item.help end)
+    end)
+    self.cvarTitle=UI:Text(self.cvarPage,L.SELECT_VALUE,15,"accent"); self.cvarDescription=UI:Text(self.cvarPage,"",11,"muted")
+    self.cvarOriginal=UI:ReadBox(self.cvarPage,300,70); self.cvarEditor=UI:Input(self.cvarPage,400,""); self.cvarEditor.placeholder:SetText(L.NEW_VALUE); self.cvarEditor:SetEnabled(false)
+    self.cvarDefaultLabel=UI:Text(self.cvarPage,"",11,"muted")
+    self.cvarApply=UI:Button(self.cvarPage,L.PREPARE,160,function() self:PrepareCVar(false) end); self.cvarApply:SetEnabled(false)
+    self.cvarDefault=UI:Button(self.cvarPage,L.CVAR_RESET,240,function() self:PrepareCVar(true) end); self.cvarDefault:SetEnabled(false)
     self.search=UI:Input(self.dataPage,250,"",function(value) self.query=value; self.catalog.offset=0; self:Refresh() end); self.search.placeholder:SetText(L.SEARCH)
     self.addonFilter=UI:Choice(self.dataPage,240,{{value="all",label=L.ALL_ADDONS}},"all",function(value) self.filters.addon=value; self.catalog.offset=0; self:Refresh() end)
     self.stateFilter=UI:Choice(self.dataPage,160,{{value="loaded",label=L.LOADED},{value="unloaded",label=L.UNLOADED},{value="all",label=L.ALL_STATES}},"loaded",function(value) self.filters.state=value; self.catalog.offset=0; self:Refresh() end)
@@ -279,8 +389,8 @@ function SVC:CreateUI()
     self.guideTitle=UI:Text(self.overlay,"",22,"accent"); self.guideText=UI:ReadBox(self.overlay,1000,500)
     self:CreateDiff()
     self.status=UI:Text(frame,L.LOADED_ONLY,11,"muted"); self.status:SetPoint("BOTTOMLEFT",16,14); self.status:SetPoint("BOTTOMRIGHT",-510,14); self.status:SetHeight(30)
-    local refresh=UI:Button(frame,L.REFRESH,126,function() self:Discover(); self:Refresh(); if self.activePage=="compare" then self:RefreshDiff() end end); refresh:SetPoint("BOTTOMRIGHT",-20,14)
-    local clear=UI:Button(frame,L.CLEAR,140,function() self.pending={}; SVCleanerDB.requests=self.pending; self:Refresh(); if self.activePage=="requests" then self:ShowPage("requests") end end); clear:SetPoint("BOTTOMRIGHT",-154,14)
+    local refresh=UI:Button(frame,L.REFRESH,126,function() self:Discover(); self:Refresh(); if self.activePage=="compare" then self:RefreshDiff() elseif self.activePage=="cvars" then self:DiscoverCVars() end end); refresh:SetPoint("BOTTOMRIGHT",-20,14)
+    local clear=UI:Button(frame,L.CLEAR,140,function() self.pending={}; SVCleanerDB.requests=self.pending; self:Refresh(); if self.activePage=="requests" then self:ShowPage("requests") elseif self.activePage=="cvars" then self:RefreshCVars() end end); clear:SetPoint("BOTTOMRIGHT",-154,14)
     self.reloadButton=UI:Button(frame,L.APPLY_RELOAD,200,function() self:PrepareReload() end); self.reloadButton:SetPoint("BOTTOMRIGHT",-302,14)
     local grip=UI:IconButton(frame,4,L.RESIZE,function() end); grip:SetPoint("BOTTOMRIGHT",-1,1); grip:SetSize(16,16)
     grip:SetScript("OnMouseDown",function(_,key) if key=="LeftButton" then frame:StartSizing("BOTTOMRIGHT") end end)
@@ -311,5 +421,5 @@ function SVC:Toggle()
     if InCombatLockdown() then print("SVCleaner: "..L.OUT_COMBAT); return end
     if not self.frame then self:CreateUI() end
     if self.frame:IsShown() then self.frame:Hide(); return end
-    self:Discover(); self:Refresh(); if self.activePage=="compare" then self:RefreshDiff() end; self.frame:Show(); self:Notice(self.applicationNotice or L.LOADED_ONLY)
+    self:Discover(); self:Refresh(); if self.activePage=="compare" then self:RefreshDiff() elseif self.activePage=="cvars" then self:DiscoverCVars() end; self.frame:Show(); self:Notice(self.applicationNotice or L.LOADED_ONLY)
 end

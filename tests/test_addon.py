@@ -145,6 +145,7 @@ class AddonTests(unittest.TestCase):
             eventsFrame.OnEvent(eventsFrame,"ADDON_LOADED","APR")
             assert(#SVC.pending==1 and SVC.pending[1].status=="mismatch" and not SVC.pending[1].verify)
             assert(SVCleanerDB.lastApplication[1].status=="mismatch")
+            assert(SVCleanerDB.lastApplication[1].observed=="42" and SVCleanerDB.lastApplication[1].desired=="51")
         ''')
 
     def test_create_ui_and_warning_on_close_preserve_requests(self):
@@ -269,6 +270,120 @@ class AddonTests(unittest.TestCase):
     def open_ui(self):
         self.lua.execute((ROOT / "UI.lua").read_text(encoding="utf-8"), "SVCleaner", self.lua.globals().SVC)
         self.lua.execute('SVC:Toggle()')
+
+    def setup_cvars(self):
+        self.lua.execute('''
+            cvars={cameraDistanceMaxZoomFactor="1",Sound_EnableAllSound="1",testLocked="0",testSecure="0",testReadOnly="0"}
+            defaults={cameraDistanceMaxZoomFactor="2",Sound_EnableAllSound="1",testLocked="0",testSecure="0",testReadOnly="0"}
+            C_CVar={
+                GetCVar=function(name) for k,v in pairs(cvars) do if k:lower()==name:lower() then return v end end end,
+                GetCVarInfo=function(name) return cvars[name],defaults[name],false,false,name=="testLocked",name=="testSecure",name=="testReadOnly" end,
+                SetCVar=function(name,value) cvars[name]=value; return true end
+            }
+            ConsoleGetAllCommands=function() return {
+                {command="cameraDistanceMaxZoomFactor",help="Zoom camera",commandType=0},
+                {command="Sound_EnableAllSound",help="Enable sound",commandType=0},
+                {command="testLocked",help="Locked variable",commandType=0},
+                {command="testSecure",help="Secure variable",commandType=0},
+                {command="testReadOnly",help="Read-only variable",commandType=0},
+                {command="reload",help="Command, not a CVar",commandType=1}
+            } end
+        ''')
+
+    def test_cvar_search_edit_defaults_and_combined_reload(self):
+        self.setup_cvars()
+        self.open_ui()
+        self.lua.execute('''
+            SVC:ShowPage("cvars"); assert(SVC.cvarPage:IsShown() and not SVC.dataPage:IsShown())
+            assert(#SVC.cvarList.items==5)
+            SVC.cvarQuery="ZOOM"; SVC:RefreshCVars(); assert(#SVC.cvarList.items==1)
+            SVC:SelectCVar(SVC.cvarList.items[1]); SVC.cvarEditor:SetText("1.5")
+            SVC:PrepareCVar(false); assert(SVC.review:IsShown() and #SVC.pending==0)
+            SVC.reviewCallback(); assert(#SVC.pending==1 and cvars.cameraDistanceMaxZoomFactor=="1")
+            SVC:PrepareCVar(true); SVC.reviewCallback()
+            assert(#SVC.pending==1 and SVC.pending[1].value=="2")
+            assert(SVC:QueueCVar("Sound_EnableAllSound","0"))
+            local row; for _,r in ipairs(SVC.rows) do if r.root=="APRData" then row=r end end
+            assert(SVC:Queue(row,{"A-Player-1-AAA","route","step"},"edit",77))
+            ReloadUI=function() end; assert(SVC:ApplyPending())
+            assert(cvars.cameraDistanceMaxZoomFactor=="2" and cvars.Sound_EnableAllSound=="0")
+            assert(APRData["A-Player-1-AAA"].route.step==77)
+            SVC:VerifyPending(); assert(#SVC.pending==0 and #SVCleanerDB.lastApplication==3)
+        ''')
+
+    def test_cvar_protection_and_external_change_prevent_batch_writes(self):
+        self.setup_cvars()
+        self.open_ui()
+        self.lua.execute('''
+            SVC:ShowPage("cvars")
+            for _,item in ipairs(SVC.cvarList.items) do
+                if item.name:match("^test") then SVC:SelectCVar(item); assert(not SVC.cvarApply:IsEnabled()) end
+            end
+            assert(not SVC:QueueCVar("testLocked","1"))
+            assert(not SVC:QueueCVar("testSecure","1"))
+            assert(not SVC:QueueCVar("testReadOnly","1"))
+            assert(not SVC:QueueCVar("notACVar","1"))
+            assert(SVC:QueueCVar("cameraDistanceMaxZoomFactor","2"))
+            cvars.cameraDistanceMaxZoomFactor="1.2"
+            ReloadUI=function() error("must not reload") end
+            assert(not SVC:ApplyPending() and cvars.cameraDistanceMaxZoomFactor=="1.2")
+        ''')
+
+    def test_cvar_failed_setter_rolls_back_savedvariables_and_previous_cvars(self):
+        self.setup_cvars()
+        self.open_ui()
+        self.lua.execute('''
+            local row; for _,r in ipairs(SVC.rows) do if r.root=="APRData" then row=r end end
+            assert(SVC:Queue(row,{"A-Player-1-AAA","route","step"},"edit",77))
+            assert(SVC:QueueCVar("cameraDistanceMaxZoomFactor","2"))
+            assert(SVC:QueueCVar("Sound_EnableAllSound","0"))
+            C_CVar.SetCVar=function(name,value)
+                if name=="Sound_EnableAllSound" and value=="0" then return false end
+                cvars[name]=value; return true
+            end
+            ReloadUI=function() error("must not reload") end
+            local ok,err=SVC:ApplyPending(); assert(not ok and err==SVC.L.CVAR_FAILED)
+            assert(APRData["A-Player-1-AAA"].route.step==42 and cvars.cameraDistanceMaxZoomFactor=="1")
+            assert(#SVC.pending==3 and not SVC.pending[1].verify and not SVC.reloading)
+        ''')
+
+    def test_cvar_legacy_exact_lookup_events_and_normalized_verification(self):
+        self.setup_cvars()
+        self.open_ui()
+        self.lua.execute('''
+            GetCVar,SetCVar=C_CVar.GetCVar,C_CVar.SetCVar
+            GetCVarDefault=function(name) return defaults[name] end
+            C_CVar,ConsoleGetAllCommands=nil,nil
+            SVC:ShowPage("cvars"); assert(#SVC.cvarList.items==0)
+            SVC.cvarQuery="cameraDistanceMaxZoomFactor"; SVC:RefreshCVars(); assert(#SVC.cvarList.items==1)
+            SVC:SelectCVar(SVC.cvarList.items[1]); SVC.cvarEditor:SetText("draft")
+            cvars.cameraDistanceMaxZoomFactor="1.2"; eventsFrame.OnEvent(eventsFrame,"CVAR_UPDATE")
+            assert(SVC.cvarOriginal.fullText=="1.2" and SVC.cvarEditor:GetText()=="draft")
+            assert(SVC:QueueCVar("cameraDistanceMaxZoomFactor","2.0"))
+            SetCVar=function(name,value) cvars[name]=tostring(tonumber(value)) end
+            ReloadUI=function() end; assert(SVC:ApplyPending())
+            cvars.cameraDistanceMaxZoomFactor="2"; SVC:VerifyPending(); assert(#SVC.pending==0)
+            for _,size in ipairs({{1040,680},{1500,980}}) do
+                SVC.frame:SetSize(size[1],size[2]); SVC:Layout()
+                assert(-SVC.cvarList._point[5]+SVC.cvarList:GetHeight() < -SVC.cvarTitle._point[5])
+                assert(-SVC.cvarDefault._point[5]+SVC.cvarDefault:GetHeight() <= SVC.cvarPage:GetHeight())
+            end
+        ''')
+
+    def test_cvar_failed_rollback_is_reported_and_reload_is_not_called(self):
+        self.setup_cvars()
+        self.open_ui()
+        self.lua.execute('''
+            assert(SVC:QueueCVar("cameraDistanceMaxZoomFactor","2"))
+            assert(SVC:QueueCVar("Sound_EnableAllSound","0"))
+            C_CVar.SetCVar=function(name,value)
+                if name=="cameraDistanceMaxZoomFactor" and value=="2" then cvars[name]=value; return true end
+                return false
+            end
+            ReloadUI=function() error("must not reload") end
+            local ok,err=SVC:ApplyPending(); assert(not ok and err==SVC.L.ROLLBACK_FAILED)
+            assert(cvars.cameraDistanceMaxZoomFactor=="2" and #SVC.pending==2)
+        ''')
 
     def test_minimap_launcher_click_drag_and_persisted_position(self):
         self.open_ui()

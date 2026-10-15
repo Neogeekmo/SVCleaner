@@ -405,6 +405,8 @@ class Store:
                     try:
                         if not isinstance(request, Table):
                             raise DataError("Demande invalide")
+                        if request.get("kind") == "cvar":
+                            raise DataError("CVar : appliquez cette demande dans l’onglet CVars en jeu")
                         candidates = [r for r in self.records.values() if r["addon"] == request.get("addon") and r["scope"] == request.get("scope") and r["account"] == record["account"] and not r["backup"] and (r["scope"] != "character" or r["character"] == request.get("character"))]
                         if len(candidates) != 1:
                             raise DataError("Addon ou fichier de personnage introuvable / ambigu")
