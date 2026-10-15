@@ -194,6 +194,7 @@ async function browseTree() {
   const crumbs = h('div', {class: 'tree-path'}, button('Racine', () => action(async () => { currentPath = []; treeOffset = 0; await browseTree(); }), 'small'));
   currentPath.forEach((key, i) => crumbs.append(' / ', h('button', {onClick: () => action(async () => { currentPath = currentPath.slice(0, i + 1); treeOffset = 0; await browseTree(); })}, key.value)));
   container.append(crumbs);
+  if (!record.readOnly) container.append(button('Créer une clé / variable', () => createValue(), 'small'));
   const filter = h('input', {placeholder: 'Filtrer les clés / personnages de ce bloc…', 'aria-label': 'Filtrer les clés du bloc', value: charQuery, onInput: event => { charQuery = event.target.value; drawTreeItems(); }});
   container.append(h('div', {class: 'panel-body', style: {padding: '12px 16px'}}, h('div', {class: 'filters', style: {marginBottom: '0'}}, filter)));
   try {
@@ -230,6 +231,24 @@ function editValue(item) {
     if (item.type === 'number') { if (!value.trim()) throw new Error('Saisissez un nombre.'); value = Number(value); if (!Number.isFinite(value)) throw new Error('Nombre invalide.'); }
     if (item.type === 'boolean') value = value === 'true';
     update(await post('stage', {id: targetId, path: item.path, operation: 'edit', value})); $('#modal').close(); await browseTree(); toast('Modification préparée dans le panier.');
+  }), 'primary')]);
+}
+function createValue() {
+  const targetId = selected, parentPath = structuredClone(currentPath);
+  const key = h('input', {placeholder: parentPath.length ? 'Nouvelle clé' : 'Nom de la variable Lua', 'aria-label': 'Nouvelle clé'});
+  const keyType = h('select', {'aria-label': 'Type de la clé'}, ['string', 'number', 'boolean'].map(type => h('option', {value: type}, type)));
+  keyType.disabled = !parentPath.length;
+  const valueType = h('select', {'aria-label': 'Type de la valeur'}, ['string', 'number', 'boolean', 'table'].map(type => h('option', {value: type}, type)));
+  const input = h('textarea', {placeholder: 'Nouvelle valeur (vide pour une table)', 'aria-label': 'Nouvelle valeur'});
+  const typed = (text, type) => {
+    if (type === 'number') { if (!text.trim() || !Number.isFinite(Number(text))) throw new Error('Nombre invalide.'); return Number(text); }
+    if (type === 'boolean') { if (!['true', 'false'].includes(text)) throw new Error('Saisissez true ou false.'); return text === 'true'; }
+    return text;
+  };
+  modal('Préparer une création', 'La clé doit être absente. Choisissez texte, nombre, booléen ou table vide ; vous pourrez ensuite remplir cette table.', [key, keyType, input, valueType], [button('Ajouter au panier', () => action(async () => {
+    const type = valueType.value;
+    update(await post('stage', {id: targetId, path: [...parentPath, {type: keyType.value, value: typed(key.value, keyType.value)}], operation: 'create', valueType: type, value: type === 'table' ? null : typed(input.value, type)}));
+    $('#modal').close(); await browseTree(); toast('Création préparée dans le panier.');
   }), 'primary')]);
 }
 function deleteValue(item) {
@@ -391,7 +410,8 @@ $('#wow-version').addEventListener('change', event => {
   });
 });
 $('#scan').addEventListener('click', () => action(async () => { update(await post('scan')); selected = null; fileSelection.clear(); await render(); toast('Inventaire actualisé.'); }));
-$('#import').addEventListener('click', () => action(async () => { const result = await post('import'); update(result.state); await render(); modal('Demandes préparées en jeu', `${result.imported} demande(s) importée(s) dans le panier. ${result.skipped.length} demande(s) nécessitent une vérification manuelle. Déconnectez-vous et actualisez le scan pour lire les dernières demandes.`, [h('div', {class: 'details-lines'}, result.skipped.map(message => h('div', {}, message)))], [button('Fermer', () => $('#modal').close())]); }));
+$('#import').addEventListener('click', () => action(async () => { const result = await post('import'); update(result.state); await render(); modal('Demandes préparées en jeu', `${result.imported} demande(s) importée(s) dans le panier. ${result.alreadyApplied} déjà appliquée(s). ${result.skipped.length} demande(s) nécessitent une vérification manuelle. Déconnectez-vous et actualisez le scan pour lire les dernières demandes.`, [h('div', {class: 'details-lines'}, result.skipped.map(message => h('div', {}, message)))], [button('Fermer', () => $('#modal').close())]); }));
+window.addEventListener('beforeunload', event => { if (state?.pending?.length) { event.preventDefault(); event.returnValue = ''; } });
 $('#manifest').addEventListener('click', () => action(async () => { const result = await post('manifest'); toast(`${result.addons} addons indexés. Manifest.lua généré dans le projet ; synchronisez l’addon puis redémarrez WoW.`); }));
 const savedTheme = localStorage.getItem('svcleaner-theme'); if (savedTheme === 'light' || savedTheme === 'dark') document.documentElement.dataset.theme = savedTheme;
 get('/api/state').then(async result => {

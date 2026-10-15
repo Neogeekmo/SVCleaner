@@ -5,7 +5,6 @@ import csv
 import hashlib
 import io
 import json
-import json
 import os
 import re
 import shutil
@@ -26,6 +25,15 @@ IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z_0-9]*$")
 
 def digest(data):
     return hashlib.sha256(data).hexdigest()
+
+
+def same_data(left, right):
+    """Lua table equality by typed keys, independent of serialization order."""
+    if kind(left) != kind(right):
+        return False
+    if isinstance(left, Table):
+        return len(left.entries) == len(right.entries) and all(right.has(key) and same_data(value, right.get(key)) for key, value in left.entries)
+    return left == right
 
 
 def contained(path, root):
@@ -241,10 +249,24 @@ class Store:
             roots = self.load(record_id)
             if not path:
                 raise DataError("Choisissez une variable ou une valeur")
-            safe_path(roots, path)
-            old = at(roots, path)
             parent = at(roots, path[:-1])
+            if not isinstance(parent, Table):
+                raise DataError("Le parent doit être une table")
             key = untoken(path[-1])
+            if operation == "create":
+                safe_path(roots, path[:-1])
+                if parent.has(key):
+                    raise DataError("Cette clé existe déjà")
+                if len(path) == 1 and (not isinstance(key, str) or not IDENTIFIER.fullmatch(key)):
+                    raise DataError("Nom de variable Lua invalide")
+                value = Table() if request.get("valueType") == "table" else request.get("value")
+                if value is None or kind(value) not in ("string", "number", "boolean", "table") or identity(key, value):
+                    raise DataError("Valeur invalide ou identité protégée")
+                literal(value)
+                old = None
+            else:
+                safe_path(roots, path)
+                old = at(roots, path)
             if operation == "edit":
                 value = request.get("value")
                 if kind(old) == "table" or kind(value) != kind(old):
@@ -254,12 +276,14 @@ class Store:
                 if identity(key, value):
                     raise DataError("Les valeurs d’identité sont protégées")
                 parent.set(key, value)
+            elif operation == "create":
+                parent.set(key, value)
             elif operation == "delete-value":
                 parent.set(key, None)
             else:
                 raise DataError("Opération inconnue")
             details = self.pending.get(record_id, {}).get("details", [])
-            details.append({"path": path, "before": str(preview(old))[:500], "after": str(preview(value))[:500] if operation == "edit" else "(supprimé)", "operation": operation})
+            details.append({"path": path, "before": str(preview(old))[:500], "after": str(preview(value))[:500] if operation in ("edit", "create") else "(supprimé)", "operation": operation})
             self.pending[record_id] = {"operation": "write", "summary": "Modifier les données sélectionnées", "details": details}
             return self.state()
 
@@ -369,7 +393,7 @@ class Store:
 
     def import_requests(self):
         with self.lock:
-            imported, skipped = 0, []
+            imported, skipped, already_applied = 0, [], 0
             for record in self.records.values():
                 if record["addon"] != "SVCleaner" or record["scope"] != "account" or record["backup"]:
                     continue
@@ -394,19 +418,27 @@ class Store:
                                 typed_key = {"type": item.get("type"), "value": item.get("value")}
                                 untoken(typed_key)
                                 path.append(typed_key)
-                        current = at(self.load(target_id), path)
-                        if isinstance(current, Table) or request.get("expectedType") == "table":
-                            raise DataError("Suppression de bloc : sélection manuelle nécessaire dans l’explorateur")
-                        if kind(current) != request.get("expectedType") or current != request.get("expectedValue"):
-                            raise DataError("Valeur modifiée depuis la demande ; vérification manuelle nécessaire")
+                        roots = self.load(target_id)
+                        parent = at(roots, path[:-1])
+                        if not isinstance(parent, Table):
+                            raise DataError("Parent introuvable")
+                        key = untoken(path[-1])
+                        current = parent.get(key)
                         operation = request.get("operation")
-                        if operation == "edit" and current == request.get("value"):
+                        desired = None if operation == "delete-value" else request.get("value")
+                        if same_data(current, desired):
+                            already_applied += 1
                             continue
-                        self.stage({"id": target_id, "path": path, "operation": operation, "value": request.get("value")})
+                        expected = request.get("expectedSnapshot") if request.get("expectedType") == "table" else request.get("expectedValue")
+                        if request.get("expectedType") == "table" and not isinstance(expected, Table):
+                            raise DataError("Ancienne suppression de bloc sans instantané : sélection manuelle nécessaire")
+                        if kind(current) != request.get("expectedType") or not same_data(current, expected):
+                            raise DataError("Valeur modifiée depuis la demande ; vérification manuelle nécessaire")
+                        self.stage({"id": target_id, "path": path, "operation": operation, "value": desired, "valueType": "table" if isinstance(desired, Table) else kind(desired)})
                         imported += 1
                     except (DataError, KeyError, TypeError) as error:
                         skipped.append(str(error))
-            return {"imported": imported, "skipped": skipped, "state": self.state()}
+            return {"imported": imported, "alreadyApplied": already_applied, "skipped": skipped, "state": self.state()}
 
     def cache_info(self, name="Cache"):
         if name not in ("Cache", "GPUCache"):

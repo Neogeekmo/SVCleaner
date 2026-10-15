@@ -79,6 +79,103 @@ class AddonTests(unittest.TestCase):
             assert(not SVC:Queue(row, {"A-Player-1-AAA", "GUID"}, "edit", "changed"))
         ''')
 
+    def test_apply_create_edit_delete_then_verify_reload(self):
+        self.open_ui()
+        self.lua.execute('''
+            local row; for _,r in ipairs(SVC.rows) do if r.root=="APRData" then row=r end end
+            local path={"A-Player-1-AAA","route"}
+            assert(SVC:Queue(row,{path[1],path[2],"step"},"edit",51))
+            assert(SVC:Queue(row,{path[1],path[2],"enabled"},"delete-value"))
+            assert(SVC:Queue(row,{path[1],path[2],false},"create",false))
+            assert(SVC:Queue(row,{path[1],path[2],3},"create",{}))
+            assert(APRData[path[1]].route.step==42 and APRData[path[1]].route[false]==nil)
+            local reloaded=false
+            ReloadUI=function() reloaded=true; assert(APRData[path[1]].route.step==51) end
+            SVC:PrepareReload(); assert(not reloaded and SVC.review:IsShown())
+            SVC.reviewCallback(); assert(reloaded and #SVC.pending==4)
+            assert(APRData[path[1]].route.enabled==nil and APRData[path[1]].route[false]==false)
+            assert(SVC.pending[1].verify)
+            SVC.reloading=nil; SVC:VerifyPending()
+            assert(#SVC.pending==0 and #SVCleanerDB.lastApplication==4)
+            for _,r in ipairs(SVCleanerDB.lastApplication) do assert(r.status=="verified") end
+        ''')
+
+    def test_reload_conflict_preflights_whole_batch_and_failed_reload_rolls_back(self):
+        self.open_ui()
+        self.lua.execute('''
+            local row; for _,r in ipairs(SVC.rows) do if r.root=="APRData" then row=r end end
+            assert(SVC:Queue(row,{"A-Player-1-AAA","route","step"},"edit",51))
+            assert(SVC:Queue(row,{"B-Player-1-BBB","route","step"},"edit",33))
+            ReloadUI=function() error("failed") end
+            APRData["B-Player-1-BBB"].route.step=17
+            assert(not SVC:ApplyPending() and APRData["A-Player-1-AAA"].route.step==42)
+            APRData["B-Player-1-BBB"].route.step=16
+            local ok,err=SVC:ApplyPending()
+            assert(not ok and err==SVC.L.RELOAD_FAILED and not SVC.reloading)
+            assert(APRData["A-Player-1-AAA"].route.step==42 and APRData["B-Player-1-BBB"].route.step==16)
+            assert(#SVC.pending==2 and not SVC.pending[1].verify)
+            InCombatLockdown=function() return true end
+            assert(not SVC:ApplyPending())
+        ''')
+
+    def test_table_snapshot_detects_live_changes_and_overlapping_requests(self):
+        self.open_ui()
+        self.lua.execute('''
+            local row; for _,r in ipairs(SVC.rows) do if r.root=="APRData" then row=r end end
+            assert(SVC:Queue(row,{"A-Player-1-AAA","route"},"delete-value"))
+            assert(not SVC:Queue(row,{"A-Player-1-AAA","route","step"},"edit",50))
+            assert(SVC.pending[1].expectedSnapshot.enabled==false)
+            APRData["A-Player-1-AAA"].route.step=43
+            ReloadUI=function() error("must not reload") end
+            assert(not SVC:ApplyPending() and APRData["A-Player-1-AAA"].route.step==43)
+            APRData["A-Player-1-AAA"].route.loop=APRData
+            assert(not SVC:Queue(row,{"A-Player-1-AAA"},"delete-value"))
+        ''')
+
+    def test_verification_retains_mismatch_and_defers_unloaded_addons(self):
+        self.open_ui()
+        self.lua.execute('''
+            local row; for _,r in ipairs(SVC.rows) do if r.root=="APRData" then row=r end end
+            assert(SVC:Queue(row,{"A-Player-1-AAA","route","step"},"edit",51))
+            ReloadUI=function() end; assert(SVC:ApplyPending())
+            C_AddOns.IsAddOnLoaded=function() return false end
+            SVC:VerifyPending(); assert(#SVC.pending==1 and SVC.pending[1].status=="deferred")
+            C_AddOns.IsAddOnLoaded=function() return true end
+            APRData["A-Player-1-AAA"].route.step=42
+            eventsFrame.OnEvent(eventsFrame,"ADDON_LOADED","APR")
+            assert(#SVC.pending==1 and SVC.pending[1].status=="mismatch" and not SVC.pending[1].verify)
+            assert(SVCleanerDB.lastApplication[1].status=="mismatch")
+        ''')
+
+    def test_create_ui_and_warning_on_close_preserve_requests(self):
+        self.open_ui()
+        self.lua.execute('''
+            local row; for _,r in ipairs(SVC.rows) do if r.root=="APRData" then row=r end end
+            SVC:OpenRow(row); SVC.path={"A-Player-1-AAA","route"}; SVC:RefreshTree()
+            SVC:ShowCreate(); SVC.createKey:SetText("newFlag")
+            SVC.createValueType:SetOptions(SVC.createValueType.options,"boolean"); SVC.createValue:SetText("false")
+            SVC:PrepareCreate(); assert(#SVC.pending==1 and SVC.pending[1].value==false)
+            assert(APRData["A-Player-1-AAA"].route.newFlag==nil)
+            assert(not SVC:Queue(row,{"A-Player-1-AAA","route","GUID"},"create","bad"))
+            StaticPopupDialogs={}; local warned=0
+            StaticPopup_Show=function(which) assert(which=="SVCLEANER_PENDING"); warned=warned+1 end
+            SVC.frame:Hide(); assert(warned==1 and #SVCleanerDB.requests==1)
+        ''')
+
+    def test_root_creation_and_character_scope_cannot_touch_other_globals(self):
+        self.open_ui()
+        self.lua.execute('''
+            SVC.Manifest.APR.character={"APRChar"}
+            local row={addon="APR",root="APRChar",scope="character",loaded=true}
+            assert(SVC:Queue(row,{},"create",{}))
+            assert(not SVC:Queue({addon="APR",root="SlashCmdList",scope="account"},{},"delete-value"))
+            UnitFullName=function() return "B","Realm" end
+            ReloadUI=function() error("must not reload") end
+            assert(not SVC:ApplyPending() and APRChar==nil)
+            UnitFullName=function() return "A","Realm" end
+            ReloadUI=function() end; assert(SVC:ApplyPending() and type(APRChar)=="table")
+        ''')
+
     def test_diff_keeps_guids_locked(self):
         self.lua.execute('''
             local diffs = SVC:Diff(APRData["A-Player-1-AAA"], APRData["B-Player-1-BBB"])

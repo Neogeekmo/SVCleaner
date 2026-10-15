@@ -285,6 +285,54 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(result["skipped"], [])
         self.assertTrue(at(self.store.load(self.record_id), self.left + [token("route"), token("enabled")]))
 
+    def test_create_typed_keys_empty_tables_apply_and_restore(self):
+        path = self.left + [token("extra")]
+        self.store.stage({"id": self.record_id, "path": path, "operation": "create", "valueType": "table"})
+        for key, value in ((False, False), (1, 12), ("text", "hello")):
+            self.store.stage({"id": self.record_id, "path": path + [token(key)], "operation": "create", "value": value})
+        self.assertEqual((self.sv / "APR.lua").read_bytes(), self.original)
+        tx = self.store.apply()["transaction"]
+        data = self.store.load(self.record_id)
+        self.assertIs(at(data, path + [token(False)]), False)
+        self.assertEqual(at(data, path + [token(1)]), 12)
+        self.store.restore(tx["id"])
+        self.assertEqual((self.sv / "APR.lua").read_bytes(), self.original)
+
+    def test_create_rejects_existing_keys_identity_and_invalid_roots(self):
+        for path, value in ((self.left + [token("GUID")], "bad"), (self.left + [token("route")], 3), ([token("bad root")], 3), (self.left + [token("newGUID")], "bad")):
+            with self.subTest(path=path), self.assertRaises(DataError):
+                self.store.stage({"id": self.record_id, "path": path, "operation": "create", "value": value})
+        self.assertFalse(self.store.pending)
+
+    def test_import_table_delete_snapshot_and_create_is_idempotent(self):
+        # Snapshot key order differs from the source file, as with Lua pairs().
+        (self.sv / "SVCleaner.lua").write_text('''SVCleanerDB = { requests = {
+            { addon="APR", root="APRData", scope="account", operation="delete-value", expectedType="table",
+              expectedSnapshot={enabled=false,step=42}, path={{type="string",value="A-Player-1-AAA"},{type="string",value="route"}} },
+            { addon="APR", root="APRData", scope="account", operation="create", value=false, expectedType="nil",
+              path={{type="string",value="extra"}} }
+        } }''')
+        self.store.scan()
+        result = self.store.import_requests()
+        self.assertEqual(result["imported"], 2)
+        self.assertEqual(result["skipped"], [])
+        result = self.store.import_requests()
+        self.assertEqual(result["imported"], 0)
+        self.assertEqual(result["alreadyApplied"], 2)
+        self.store.apply()
+        self.assertEqual(self.store.import_requests()["alreadyApplied"], 2)
+
+    def test_import_rejects_changed_table_snapshot(self):
+        (self.sv / "SVCleaner.lua").write_text('''SVCleanerDB = { requests = {
+            { addon="APR", root="APRData", scope="account", operation="delete-value", expectedType="table",
+              expectedSnapshot={enabled=false,step=99}, path={{type="string",value="A-Player-1-AAA"},{type="string",value="route"}} }
+        } }''')
+        self.store.scan()
+        result = self.store.import_requests()
+        self.assertEqual(result["imported"], 0)
+        self.assertEqual(len(result["skipped"]), 1)
+        self.assertFalse(self.store.pending)
+
     def test_bak_edit_rejected(self):
         r = next(r for r in self.store.records.values() if r["backup"])
         with self.assertRaises(DataError):

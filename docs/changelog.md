@@ -1,3 +1,11 @@
+# Unreleased
+
+- Application des changements préparés en jeu avec reload et vérification après rechargement.
+- Avertissement à la fermeture avec demandes en attente ; conservation pour reprise via le compagnon.
+- Création de clés typées, valeurs et tables vides dans les deux interfaces.
+- Import des suppressions de tables avec instantané et détection des demandes déjà appliquées.
+- Traductions du nouveau workflow dans les onze catalogues.
+
 # SVCleaner 0.1.0
 
 Gestionnaire de SavedVariables, comparaison des personnages et préparation des modifications hors jeu.

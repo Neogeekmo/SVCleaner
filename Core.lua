@@ -151,30 +151,194 @@ function SVC:CharacterLabel(key)
     if (container=="char" or container=="profileKeys") and key:find(" - ",1,true) then return key.." · "..L.UNOBSERVED end
 end
 
+-- Literal snapshots also let the companion check table deletions without executing Lua.
+function SVC:Snapshot(value)
+    local seen, nodes = {}, 0
+    local function copy(item, depth)
+        nodes = nodes + 1
+        if nodes > 40000 or depth > 50 or issecretvalue and issecretvalue(item) then error(L.READ_ONLY) end
+        local typ = type(item)
+        if typ == "number" and (item ~= item or item == math.huge or item == -math.huge) then error(L.NON_FINITE) end
+        if typ == "string" and #item > 32768 then error(L.READ_ONLY) end
+        if typ ~= "table" then
+            if typ ~= "nil" and typ ~= "string" and typ ~= "number" and typ ~= "boolean" then error(L.READ_ONLY) end
+            return item
+        end
+        if seen[item] then error(L.READ_ONLY) end
+        seen[item] = true
+        local result = {}
+        for key, child in pairs(item) do
+            if type(key) ~= "string" and type(key) ~= "number" and type(key) ~= "boolean" then error(L.READ_ONLY) end
+            result[copy(key, depth + 1)] = copy(child, depth + 1)
+        end
+        seen[item] = nil
+        return result
+    end
+    return pcall(copy, value, 0)
+end
+
+function SVC:Equal(a, b)
+    if type(a) ~= type(b) then return false end
+    if type(a) ~= "table" then return a == b end
+    for key, value in pairs(a) do if not self:Equal(value, rawget(b, key)) then return false end end
+    for key in pairs(b) do if rawget(a, key) == nil then return false end end
+    return true
+end
+
+function SVC:RequestTarget(request)
+    if type(request) ~= "table" or type(request.root) ~= "string" or type(request.addon) ~= "string"
+        or request.addon == ADDON or request.addon:match("^Blizzard_") or request.root == "SVCleanerDB"
+        or (request.scope ~= "account" and request.scope ~= "character") then return nil, L.UNAVAILABLE end
+    local api, declared = self.Compat:GetAddOnAPI(), false
+    if not api.IsAddOnLoaded or not api.IsAddOnLoaded(request.addon) then return nil, L.NOT_LOADED end
+    for _, root in ipairs((self.Manifest[request.addon] or {})[request.scope] or {}) do if root == request.root then declared = true end end
+    if api.GetAddOnMetadata then
+        local ok, metadata = pcall(api.GetAddOnMetadata, request.addon, request.scope == "account" and "SavedVariables" or "SavedVariablesPerCharacter")
+        if ok and type(metadata) == "string" then for root in metadata:gmatch("[%a_][%w_]*") do if root == request.root then declared = true end end end
+    end
+    local name, realm = self.Compat:PlayerIdentity()
+    if not declared or request.scope == "character" and request.character ~= name .. " - " .. realm then return nil, L.UNAVAILABLE end
+    local path, parent, key = {}, _G, request.root
+    if type(request.path) ~= "table" then return nil, L.UNAVAILABLE end
+    for i, item in ipairs(request.path) do
+        if type(item) ~= "table" or (item.type ~= "string" and item.type ~= "number" and item.type ~= "boolean") or type(item.value) ~= item.type then return nil, L.UNAVAILABLE end
+        path[i] = item.value
+    end
+    if #path > 0 then
+        local parentPath = {}; for i = 1, #path - 1 do parentPath[i] = path[i] end
+        parent, key = self:Resolve(request.root, parentPath), path[#path]
+    end
+    if type(parent) ~= "table" or self:Protected(request.root, path) then return nil, L.UNAVAILABLE end
+    return {parent = parent, key = key, old = rawget(parent, key)}
+end
+
 function SVC:Queue(row, path, operation, value)
-    if not row.available or self:Protected(row.root, path) then return false, L.UNAVAILABLE end
-    local old = self:Resolve(row.root, path)
-    if old == nil then return false, L.NOT_FOUND end
+    if operation ~= "edit" and operation ~= "delete-value" and operation ~= "create" then return false, L.UNAVAILABLE end
+    local copied = {}
+    for index, key in ipairs(path) do copied[index] = {type = type(key), value = key} end
+    local name, realm = self.Compat:PlayerIdentity()
+    local request = {addon = row.addon, root = row.root, scope = row.scope, path = copied, character = name .. " - " .. realm}
+    local target, err = self:RequestTarget(request)
+    if not target then return false, err end
+    local old = target.old
+    if operation == "create" then
+        if old ~= nil or value == nil or self:IsIdentity(path[#path] or row.root, value) then return false, L.CREATE_EXISTS end
+        if type(value) ~= "string" and type(value) ~= "number" and type(value) ~= "boolean" and type(value) ~= "table" then return false, L.TYPE_ID end
+        if type(value) == "table" and next(value) then return false, L.TYPE_ID end
+    elseif old == nil then return false, L.NOT_FOUND end
     if operation == "edit" and ((type(old) ~= "string" and type(old) ~= "number" and type(old) ~= "boolean") or type(old) ~= type(value) or self:IsIdentity(path[#path], value)) then
         return false, L.TYPE_ID
     end
     if type(value) == "number" and (value ~= value or value == math.huge or value == -math.huge) then return false, L.NON_FINITE end
     if operation=="edit" and type(value)=="string" and (#value>32768 or #old>32768) then return false,L.READ_ONLY end
-    local copied = {}
-    for index, key in ipairs(path) do copied[index] = {type = type(key), value = key} end
-    local name, realm = self.Compat:PlayerIdentity()
+    local ok, snapshot = self:Snapshot(old)
+    if not ok then return false, L.READ_ONLY end
     local slot = #self.pending + 1
     for index, request in ipairs(self.pending) do
-        local same = request.addon == row.addon and request.root == row.root and request.scope == row.scope and #request.path == #copied
+        local sameOwner = request.addon == row.addon and request.root == row.root and request.scope == row.scope and (row.scope ~= "character" or request.character == name .. " - " .. realm)
+        local same = sameOwner and #request.path == #copied
         for i, key in ipairs(copied) do if not request.path[i] or request.path[i].type ~= key.type or request.path[i].value ~= key.value then same = false end end
         if same then slot = index; break end
+        if sameOwner then
+            local prefix = true
+            for i = 1, math.min(#request.path, #copied) do
+                if request.path[i].type ~= copied[i].type or request.path[i].value ~= copied[i].value then prefix = false end
+            end
+            if prefix then return false, L.OVERLAP end
+        end
     end
     self.pending[slot] = {addon = row.addon, root = row.root, scope = row.scope, path = copied,
         operation = operation, value = value, expectedType = type(old), expectedValue = type(old) ~= "table" and old or nil,
         character = name .. " - " .. realm, created = time()}
     if type(old) ~= "table" then self.pending[slot].expectedValue = old end
+    if type(old) == "table" then self.pending[slot].expectedSnapshot = snapshot end
     SVCleanerDB.requests = self.pending
     return true
+end
+
+function SVC:ApplyPending()
+    if InCombatLockdown() then return false, L.OUT_COMBAT end
+    if #self.pending == 0 then return false, L.EMPTY end
+    if type(ReloadUI) ~= "function" then return false, L.API_MISSING end
+    local changes = {}
+    for _, request in ipairs(self.pending) do
+        for _, change in ipairs(changes) do
+            local other = change.request
+            if other.root == request.root then
+                local prefix = true
+                for i = 1, math.min(#other.path, #request.path) do
+                    if other.path[i].type ~= request.path[i].type or other.path[i].value ~= request.path[i].value then prefix = false end
+                end
+                if prefix then return false, L.OVERLAP end
+            end
+        end
+        local target, err = self:RequestTarget(request)
+        if not target then return false, err end
+        local ok, current = self:Snapshot(target.old)
+        local expected = request.expectedValue
+        if request.expectedType == "table" then expected = request.expectedSnapshot end
+        if not ok or type(current) ~= request.expectedType or not self:Equal(current, expected) then return false, L.CONFLICT end
+        if request.operation == "create" then
+            if current ~= nil or request.value == nil then return false, L.CONFLICT end
+        elseif request.operation == "edit" then
+            if type(current) == "table" or type(request.value) ~= type(current) then return false, L.TYPE_ID end
+        elseif request.operation ~= "delete-value" then return false, L.UNAVAILABLE end
+        if request.operation ~= "delete-value" then
+            local valid = self:Snapshot(request.value)
+            if not valid or self:IsIdentity(target.key, request.value) then return false, L.TYPE_ID end
+        end
+        changes[#changes + 1] = {target = target, request = request}
+    end
+    -- No addon callback runs between preflight and these raw assignments.
+    for _, change in ipairs(changes) do
+        local value = change.request.value
+        if type(value) == "table" then local _, copied = self:Snapshot(value); value = copied end
+        if change.request.operation == "delete-value" then value = nil end
+        rawset(change.target.parent, change.target.key, value)
+        change.request.verify, change.request.status = true, "awaiting-reload"
+    end
+    self.reloading = true
+    local ok = pcall(ReloadUI)
+    if not ok then
+        self.reloading = nil
+        for i = #changes, 1, -1 do
+            local change = changes[i]; rawset(change.target.parent, change.target.key, change.target.old)
+            change.request.verify, change.request.status = nil, nil
+        end
+        return false, L.RELOAD_FAILED
+    end
+    return true
+end
+
+function SVC:VerifyPending()
+    local remaining, checked, failed = {}, 0, 0
+    SVCleanerDB.lastApplication = SVCleanerDB.lastApplication or {}
+    for _, request in ipairs(self.pending) do
+        if request.verify then
+            local target, err = self:RequestTarget(request)
+            local name, realm = self.Compat:PlayerIdentity()
+            local deferred = err == L.NOT_LOADED or request.scope == "character" and request.character ~= name .. " - " .. realm
+            if not deferred then
+                local ok, current = false, nil
+                if target then ok, current = self:Snapshot(target.old) end
+                local desired = request.value
+                if request.operation == "delete-value" then desired = nil end
+                local matched = ok and self:Equal(current, desired)
+                request.verify, request.status = nil, matched and "verified" or "mismatch"
+                checked = checked + 1
+                if not matched then failed = failed + 1 end
+                table.insert(SVCleanerDB.lastApplication, 1, request)
+                if #SVCleanerDB.lastApplication > 100 then table.remove(SVCleanerDB.lastApplication) end
+                if not matched then remaining[#remaining + 1] = request end
+            else request.status = "deferred"; remaining[#remaining + 1] = request end
+        else remaining[#remaining + 1] = request end
+    end
+    self.pending, SVCleanerDB.requests = remaining, remaining
+    if checked > 0 then
+        self.applicationNotice = string.format(L.VERIFY_RESULT, checked - failed, failed)
+        print("SVCleaner: " .. self.applicationNotice)
+    end
+    if self.frame then self:Refresh(); if self.activePage == "requests" then self:ShowPage("requests") end end
 end
 
 function SVC:Diff(left, right)
@@ -259,6 +423,7 @@ local events = CreateFrame("Frame")
 events:RegisterEvent("ADDON_LOADED")
 events:RegisterEvent("PLAYER_LOGIN")
 events:RegisterEvent("PLAYER_REGEN_DISABLED")
+events:RegisterEvent("PLAYER_LOGOUT")
 events:SetScript("OnEvent", function(_, event, name)
     if event == "ADDON_LOADED" and name == ADDON then
         SVCleanerDB = SVCleanerDB or {}
@@ -272,7 +437,13 @@ events:SetScript("OnEvent", function(_, event, name)
         local playerName, realm = SVC.Compat:PlayerIdentity()
         if guid then SVCleanerDB.characters[guid] = {name = playerName, realm = realm, lastSeen = time()} end
         SVC:CreateMinimapButton()
+        SVC.loggedIn = true
+        SVC.Compat:NextFrame(function() SVC:VerifyPending() end)
         -- Discovery is deferred until the manager is opened.
+    elseif event == "ADDON_LOADED" and SVC.loggedIn then
+        SVC.Compat:NextFrame(function() SVC:VerifyPending() end)
+    elseif event == "PLAYER_LOGOUT" and #SVC.pending > 0 and not SVC.reloading then
+        print("SVCleaner: " .. L.PENDING_WARNING)
     elseif event == "PLAYER_REGEN_DISABLED" and SVC.frame then
         SVC.frame:Hide()
     end

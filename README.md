@@ -9,7 +9,7 @@
 <p align="center">
   A <strong>SavedVariables</strong> and temporary data manager for <strong>World of Warcraft</strong>.<br>
   Find your addons' data, compare your characters, and prepare your cleanup.<br>
-  An <strong>in-game addon</strong> to explore. A <strong>local companion</strong> to back up and apply changes.
+  An <strong>in-game addon</strong> to edit and reload. A <strong>local companion</strong> to clean orphaned data and manage files without launching WoW.
 </p>
 
 <p align="center">
@@ -50,14 +50,14 @@
     </td>
     <td width="50%" valign="top">
       <h3>04 &nbsp; Back up and apply</h3>
-      <p>Close all WoW clients, then apply the pending changes in the companion. Original files are backed up before any writes.</p>
+      <p>In game, choose <strong>Apply and reload</strong>; results are checked after the reload. Or close all WoW clients and apply in the companion, which backs up original files before writing.</p>
       <p>Use the history to inspect a transaction, measure its changes, or prepare a restore.</p>
     </td>
   </tr>
 </table>
 
 > [!NOTE]
-> The addon prepares requests; the companion applies them to files while WoW is closed. To retrieve requests prepared in game, log out, close WoW, then import the in-game requests in the companion.
+> Both interfaces keep the preparation step. In game, review your requests and click **Apply and reload** to change loaded data and verify the results after reloading. Closing the window with pending changes displays a warning. To continue in the companion instead, log out, close WoW, scan, and import the in-game requests.
 
 ## Installation
 
@@ -105,7 +105,8 @@ python companion/app.py --demo
     <td width="50%" valign="top">
       <h3>✏️ &nbsp; Editing and cleanup</h3>
       <ul>
-        <li><strong>Scalar value editing</strong> that preserves the original type: text, number, or boolean.</li>
+        <li><strong>Editing, deletion and creation</strong> in both interfaces: text, numbers, booleans and empty tables, with typed keys. Existing scalar edits preserve their type.</li>
+        <li><strong>Apply and reload in game</strong>, with conflict checks before writing and verification after reloading.</li>
         <li><strong>Bulk deletion</strong> in the companion: select individual files or all filtered results.</li>
         <li><strong>Orphaned files and backup copies</strong> listed separately so you can review what to remove.</li>
         <li><strong>Pending changes and before/after review</strong>, original-file backups, and restore history.</li>
@@ -142,7 +143,7 @@ Both interfaces offer **light and dark themes**. The addon window can be moved a
 |---|---|---|
 | Explore variables | Accessible data from loaded addons | Files in the selected WoW client folder |
 | Inspect other characters | Character blocks in loaded account-wide variables | Character folders and account-wide variables |
-| Edit, delete, or copy | Prepare requests | Back up and apply file changes |
+| Create, edit, delete, or copy | Prepare, apply to loaded data and reload; verify results | Prepare, back up and apply file changes without launching WoW |
 | Identify orphaned files | — | Match files against installed addons |
 | Measure storage | Bounded estimates of loaded data | Actual bytes, charts, and history |
 | Maintain caches | Command and settings guidance | Rename a cache folder with restore support |
@@ -175,9 +176,11 @@ Copies preserve destination keys and the parent identifier. They operate on exis
 ## Backups and applying changes
 
 1. **Prepare** changes in the addon or companion.
-2. **Close WoW** after logging out; import in-game requests when needed.
-3. **Review the pending changes**, then choose **Back up and apply**.
-4. **Open the history** to find original files or restore a transaction compatible with the current file contents.
+2. In game, review the requests and choose **Apply and reload**. The addon checks that the original values still match before applying the entire batch. It keeps requests until their result has been checked after reload; differences remain visible for review. Unloaded addons and requests belonging to another character wait until their data is available.
+3. To use the companion instead, **log out and close WoW**, scan, then import in-game requests when needed. Scalar changes, creations and table deletions with a matching snapshot can be imported. Requests already reflected in the data are skipped.
+4. **Review the companion basket**, then choose **Back up and apply**. **Open the history** to restore a transaction compatible with the current file contents.
+
+In-game changes do not create the companion's file backups. An addon may recreate a deleted value or change it during shutdown or initialization; verification reports these differences. A normal `/reload` does not apply prepared requests: use **Apply and reload**. Pending requests are saved on logout or reload and can be resumed in the companion. Closing the companion browser tab with a nonempty basket also triggers a warning; stopping its server discards that in-memory basket.
 
 Original files and the journal are stored in `data/<installation>/<transaction>`. The companion checks file contents before writing; a restore refuses to overwrite data that has changed in the meantime.
 

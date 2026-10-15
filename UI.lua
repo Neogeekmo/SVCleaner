@@ -27,6 +27,7 @@ function SVC:Refresh()
     self.kindFilter:SetOptions(self.kindFilter.options,f.kind)
     self.count:SetText(string.format(L.RESULTS,#items,#self.rows)); self.metric:SetText(L.ESTIMATE..": "..self:FormatBytes(bytes))
     self.loadedCount:SetText(string.format(L.LOADED_COUNT,loaded,#self.rows-loaded)); self.queueCount:SetText(string.format(L.REQUEST_COUNT,#self.pending))
+    self.reloadButton:SetEnabled(#self.pending > 0 and not InCombatLockdown())
     self:RefreshTree(); self:RefreshDetail()
 end
 function SVC:RefreshGraph() end -- Metrics are compact; the companion provides disk charts.
@@ -37,7 +38,7 @@ end
 function SVC:RefreshTree()
     if not self.tree then return end
     local row=self.selected
-    if not row then self.tree:SetItems({}); self.pathLabel:SetText(L.SELECT_VARIABLE); self.treeCount:SetText(""); self.compareButton:SetEnabled(false); return end
+    if not row then self.tree:SetItems({}); self.pathLabel:SetText(L.SELECT_VARIABLE); self.treeCount:SetText(""); self.compareButton:SetEnabled(false); self.createButton:SetEnabled(false); return end
     self.pathLabel:SetText(row.root..(#(self.path or {})>0 and " / "..pathText(self.path) or ""))
     local value=self:Resolve(row.root,self.path or {}); local items={}; local query=self:Fold(self.charQuery); local kind=self.filters.kind
     if row.available and type(value)=="table" then
@@ -60,6 +61,7 @@ function SVC:RefreshTree()
     self.tree.selected=self.editSelection and self.editSelection.key; self.tree:SetItems(items,true)
     self.treeCount:SetText(string.format(L.COUNT,#items)); self.up:SetEnabled(#self.path>0)
     self.compareButton:SetEnabled(row.available); self.compareButton.label:SetText(L.COMPARE..((#(self.comparisonSelection or {})>0) and " ("..#self.comparisonSelection..")" or ""))
+    self.createButton:SetEnabled(row.loaded and (type(value)=="table" or value==nil and #self.path==0) and not self:Protected(row.root,self.path))
 end
 function SVC:SelectValue(item)
     self.editSelection=item; self.tree.selected=item.key; self.tree:Render()
@@ -101,7 +103,51 @@ function SVC:RefreshDetail()
     self.original:SetText(item and (type(item.value)=="table" and self:Preview(item.value) or tostring(item.value)) or hint)
 end
 function SVC:Review(title,before,after,callback)
+    self.reviewConfirm.label:SetText(L.PREPARE)
     self.reviewTitle:SetText(title); self.reviewBefore:SetText(L.ORIGINAL.."\n\n"..before); self.reviewAfter:SetText(L.NEW_VALUE.."\n\n"..after); self.reviewCallback=callback; self.reviewBlocker:Show(); self.review:Show()
+end
+function SVC:PrepareReload()
+    if #self.pending == 0 then return end
+    self:Review(L.APPLY_RELOAD, string.format(L.REQUEST_COUNT,#self.pending), L.APPLY_HINT, function()
+        local ok,err=self:ApplyPending(); if not ok then self:Notice(err) end
+    end)
+    self.reviewConfirm.label:SetText(L.APPLY_RELOAD)
+end
+
+function SVC:ShowCreate()
+    local row=self.selected; if not row then return end
+    self.createRow,self.createPath=row,pathCopy(self.path)
+    self.createKey:SetText(""); self.createValue:SetText(""); self.createBlocker:Show(); self.createDialog:Show()
+end
+
+function SVC:PrepareCreate()
+    local row,path=self.createRow,pathCopy(self.createPath)
+    local key=self.createKey:GetText()
+    if not (#path==0 and self:Resolve(row.root,{})==nil) then
+        if self.createKeyType.value=="number" then key=tonumber(key)
+        elseif self.createKeyType.value=="boolean" then
+            if key~="true" and key~="false" then self:Notice(L.BOOL_HINT); return end; key=key=="true"
+        end
+        if key==nil or type(key)=="number" and (key~=key or key==math.huge or key==-math.huge) then self:Notice(L.NUMBER_HINT); return end
+        path[#path+1]=key
+    end
+    local value=self.createValue:GetText(); local typ=self.createValueType.value
+    if typ=="number" then value=tonumber(value); if not value then self:Notice(L.NUMBER_HINT); return end
+    elseif typ=="boolean" then if value~="true" and value~="false" then self:Notice(L.BOOL_HINT); return end; value=value=="true"
+    elseif typ=="table" then value={} end
+    local ok,err=self:Queue(row,path,"create",value)
+    self:Notice(ok and L.QUEUED or err)
+    if ok then self.createDialog:Hide(); self:Refresh() end
+end
+
+function SVC:WarnPending()
+    if #self.pending==0 or self.reloading then return end
+    print("SVCleaner: "..L.PENDING_WARNING)
+    if StaticPopupDialogs and StaticPopup_Show then
+        StaticPopupDialogs.SVCLEANER_PENDING={text=L.PENDING_WARNING,button1=L.CLOSE,
+            timeout=0,whileDead=1,hideOnEscape=1}
+        StaticPopup_Show("SVCLEANER_PENDING")
+    end
 end
 function SVC:QueueSelection(operation)
     local item,row=self.editSelection,self.selected; if not item or not row then self:Notice(L.SELECT_VALUE); return end
@@ -127,7 +173,8 @@ function SVC:ShowPage(id)
     elseif id=="companion" then self.guideTitle:SetText(L.COMPANION); self.guideText:SetText(L.COMPANION_GUIDE)
     elseif id=="requests" then
         self.guideTitle:SetText(string.format(L.REQUEST_COUNT,#self.pending)); local lines={L.REQUEST_HINT}
-        for _,request in ipairs(self.pending) do local path={}; for i,k in ipairs(request.path) do path[i]=k.value end; lines[#lines+1]=request.addon.." / "..request.root.." / "..pathText(path).."\n"..tostring(request.expectedValue).." -> "..(request.operation=="edit" and tostring(request.value) or L.MISSING) end
+        for _,request in ipairs(self.pending) do local path={}; for i,k in ipairs(request.path) do path[i]=k.value end; lines[#lines+1]=request.addon.." / "..request.root.." / "..pathText(path).."\n"..(request.operation=="create" and L.CREATE or request.operation=="edit" and L.EDIT or L.DELETE)..": "..tostring(request.expectedValue).." -> "..(request.operation~="delete-value" and self:Preview(request.value) or L.MISSING).."\n"..(request.status and L["RESULT_"..request.status:upper():gsub("-","_")] or L.PREPARED) end
+        for _,request in ipairs(SVCleanerDB.lastApplication or {}) do lines[#lines+1]=request.root.." · "..(L["RESULT_"..request.status:upper():gsub("-","_")]) end
         self.guideText:SetText(table.concat(lines,"\n\n"))
     end
 end
@@ -148,7 +195,7 @@ function SVC:Layout()
     place(self.pathLabel,self.dataPage,treeX+36,39,treeWidth-36,22)
     place(self.up,self.dataPage,treeX,36,26,26)
     place(self.charSearch,self.dataPage,treeX,72,treeWidth-210,28); place(self.kindFilter,self.dataPage,inner-200,72,200,28)
-    local actions={self.openButton,self.detailButton,self.compareButton}; x=treeX
+    local actions={self.openButton,self.detailButton,self.compareButton,self.createButton}; x=treeX
     for i,button in ipairs(actions) do local width=i==3 and 132 or 88; place(button,self.dataPage,x,108,width,26); x=x+width+6 end
     place(self.treeCount,self.dataPage,inner-180,112,180,20)
     local detailHeight=self.detail:IsShown() and 170 or 0
@@ -164,6 +211,7 @@ function SVC:Layout()
     self:LayoutDiff(inner,h-204)
     place(self.guideTitle,self.overlay,22,20,inner-44,30); place(self.guideText,self.overlay,22,65,inner-44,h-295)
     self.review:SetSize(math.min(900,inner-30),420); self.review:SetPoint("CENTER")
+    self.createDialog:SetSize(600,290); self.createDialog:SetPoint("CENTER")
     local rw=self.review:GetWidth(); place(self.reviewTitle,self.review,20,20,rw-40,60)
     place(self.reviewBefore,self.review,20,96,(rw-52)/2,250); place(self.reviewAfter,self.review,32+(rw-52)/2,96,(rw-52)/2,250)
     self.layoutBusy=false
@@ -227,11 +275,13 @@ function SVC:CreateUI()
     self.openButton=UI:Button(self.dataPage,L.OPEN_SHORT,88,function() self:OpenSelection() end)
     self.detailButton=UI:Button(self.dataPage,L.DETAIL_SHORT,88,function() if self.editSelection then self.detail:Show(); self:RefreshDetail(); self:Layout() end end)
     self.compareButton=UI:Button(self.dataPage,L.COMPARE,132,function() self:CompareSelection() end); UI:Tooltip(self.compareButton,L.SELECT_TWO)
+    self.createButton=UI:Button(self.dataPage,L.CREATE,88,function() self:ShowCreate() end)
     self.guideTitle=UI:Text(self.overlay,"",22,"accent"); self.guideText=UI:ReadBox(self.overlay,1000,500)
     self:CreateDiff()
-    self.status=UI:Text(frame,L.LOADED_ONLY,11,"muted"); self.status:SetPoint("BOTTOMLEFT",16,14); self.status:SetPoint("BOTTOMRIGHT",-300,14); self.status:SetHeight(30)
+    self.status=UI:Text(frame,L.LOADED_ONLY,11,"muted"); self.status:SetPoint("BOTTOMLEFT",16,14); self.status:SetPoint("BOTTOMRIGHT",-510,14); self.status:SetHeight(30)
     local refresh=UI:Button(frame,L.REFRESH,126,function() self:Discover(); self:Refresh(); if self.activePage=="compare" then self:RefreshDiff() end end); refresh:SetPoint("BOTTOMRIGHT",-20,14)
     local clear=UI:Button(frame,L.CLEAR,140,function() self.pending={}; SVCleanerDB.requests=self.pending; self:Refresh(); if self.activePage=="requests" then self:ShowPage("requests") end end); clear:SetPoint("BOTTOMRIGHT",-154,14)
+    self.reloadButton=UI:Button(frame,L.APPLY_RELOAD,200,function() self:PrepareReload() end); self.reloadButton:SetPoint("BOTTOMRIGHT",-302,14)
     local grip=UI:IconButton(frame,4,L.RESIZE,function() end); grip:SetPoint("BOTTOMRIGHT",-1,1); grip:SetSize(16,16)
     grip:SetScript("OnMouseDown",function(_,key) if key=="LeftButton" then frame:StartSizing("BOTTOMRIGHT") end end)
     grip:SetScript("OnMouseUp",function() frame:StopMovingOrSizing(); SVCleanerDB.geometry={width=frame:GetWidth(),height=frame:GetHeight()}; self:Layout() end)
@@ -239,14 +289,27 @@ function SVC:CreateUI()
     self.review=UI:Panel(self.reviewBlocker,"window"); self.review:SetFrameLevel(frame:GetFrameLevel()+90); self.review:Hide(); self.review:SetScript("OnHide",function() self.reviewBlocker:Hide() end)
     self.reviewTitle=UI:Text(self.review,"",18,"accent"); self.reviewBefore=UI:ReadBox(self.review,400,250); self.reviewAfter=UI:ReadBox(self.review,400,250)
     local confirm=UI:Button(self.review,L.PREPARE,220,function() local callback=self.reviewCallback; self.review:Hide(); if callback then callback() end end); confirm:SetPoint("BOTTOMRIGHT",-20,18)
+    self.reviewConfirm=confirm
     local cancel=UI:Button(self.review,L.CANCEL,120,function() self.review:Hide() end); cancel:SetPoint("BOTTOMRIGHT",-248,18)
+    self.createBlocker=UI:Panel(frame); self.createBlocker:SetAllPoints(); self.createBlocker:SetFrameLevel(frame:GetFrameLevel()+85); self.createBlocker:EnableMouse(true); self.createBlocker:Hide()
+    self.createDialog=UI:Panel(self.createBlocker,"window"); self.createDialog:SetFrameLevel(frame:GetFrameLevel()+90); self.createDialog:Hide()
+    self.createDialog:SetScript("OnHide",function() self.createBlocker:Hide() end)
+    place(UI:Text(self.createDialog,L.CREATE_HINT,13,"accent"),self.createDialog,20,16,560,50)
+    local keyTypes={{value="string",label=L.STRING},{value="number",label=L.NUMBER},{value="boolean",label=L.BOOLEAN}}
+    self.createKey=UI:Input(self.createDialog,350,""); self.createKey.placeholder:SetText(L.KEY); place(self.createKey,self.createDialog,20,80,350,28)
+    self.createKeyType=UI:Choice(self.createDialog,190,keyTypes,"string",function() end); place(self.createKeyType,self.createDialog,380,80,190,28)
+    self.createValue=UI:Input(self.createDialog,350,""); self.createValue.placeholder:SetText(L.VALUE); place(self.createValue,self.createDialog,20,130,350,28)
+    local valueTypes={unpack(keyTypes)}; valueTypes[#valueTypes+1]={value="table",label=L.TABLE}
+    self.createValueType=UI:Choice(self.createDialog,190,valueTypes,"string",function() end); place(self.createValueType,self.createDialog,380,130,190,28)
+    local create=UI:Button(self.createDialog,L.PREPARE,220,function() self:PrepareCreate() end); create:SetPoint("BOTTOMRIGHT",-20,18)
+    local cancelCreate=UI:Button(self.createDialog,L.CANCEL,120,function() self.createDialog:Hide() end); cancelCreate:SetPoint("BOTTOMLEFT",20,18)
     frame:SetScript("OnSizeChanged",function() self:Layout() end)
-    frame:SetScript("OnHide",function() frame:StopMovingOrSizing(); if UI.menu then UI.menu:Hide() end; self.review:Hide(); SVCleanerDB.geometry={width=frame:GetWidth(),height=frame:GetHeight()} end)
-    self:Layout(); self:ShowPage("data"); frame:Hide()
+    frame:SetScript("OnHide",function() frame:StopMovingOrSizing(); if UI.menu then UI.menu:Hide() end; self.review:Hide(); self.createDialog:Hide(); SVCleanerDB.geometry={width=frame:GetWidth(),height=frame:GetHeight()}; if self.uiReady then self:WarnPending() end end)
+    self:Layout(); self:ShowPage("data"); frame:Hide(); self.uiReady=true
 end
 function SVC:Toggle()
     if InCombatLockdown() then print("SVCleaner: "..L.OUT_COMBAT); return end
     if not self.frame then self:CreateUI() end
     if self.frame:IsShown() then self.frame:Hide(); return end
-    self:Discover(); self:Refresh(); if self.activePage=="compare" then self:RefreshDiff() end; self.frame:Show(); self:Notice(L.LOADED_ONLY)
+    self:Discover(); self:Refresh(); if self.activePage=="compare" then self:RefreshDiff() end; self.frame:Show(); self:Notice(self.applicationNotice or L.LOADED_ONLY)
 end
