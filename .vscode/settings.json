@@ -11,7 +11,8 @@
     "GameFontNormal",
     "Minimap",
     "StaticPopupDialogs",
-    "StaticPopup_Show"
+    "StaticPopup_Show",
+    "ReloadUI"
   ],
   "Lua.runtime.builtin": {
     "basic": "disable",

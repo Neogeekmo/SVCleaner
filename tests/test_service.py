@@ -340,7 +340,7 @@ class StoreTests(unittest.TestCase):
         self.store.scan()
         result = self.store.import_requests()
         self.assertEqual(result["imported"], 0)
-        self.assertIn("onglet CVars en jeu", result["skipped"][0])
+        self.assertIn("onglet CVars en jeu", str(result["skipped"][0]))
         self.assertFalse(self.store.pending)
 
     def test_bak_edit_rejected(self):

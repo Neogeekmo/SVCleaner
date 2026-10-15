@@ -68,8 +68,8 @@ def build_companion(output=None, version=None):
     """Bundle the Python companion and everything its addon installer needs."""
     version = package_version(version)
     output = Path(output or ROOT / "output" / f"SVCleaner-Companion-{version}.zip")
-    paths = runtime_files() + [ROOT / "companion" / name for name in ("app.py", "demo.py", "flavors.py", "lua_data.py", "runtime.py", "service.py")]
-    paths += [ROOT / "companion" / "web" / name for name in ("index.html", "app.js", "style.css", "logo.svg")]
+    paths = runtime_files() + [ROOT / "companion" / name for name in ("app.py", "demo.py", "flavors.py", "i18n.py", "lua_data.py", "runtime.py", "service.py")]
+    paths += [ROOT / "companion" / "web" / name for name in ("index.html", "app.js", "i18n.js", "locales.json", "style.css", "logo.svg")]
     paths += [ROOT / "tools" / "package_addon.py", ROOT / "Lancer-SVCleaner.cmd", ROOT / "README.md"]
     output.parent.mkdir(parents=True, exist_ok=True)
     with ZipFile(output, "w", ZIP_DEFLATED) as archive:

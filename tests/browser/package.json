@@ -1,0 +1,6 @@
+{
+  "name": "svcleaner-browser-tests",
+  "private": true,
+  "scripts": {"test": "node smoke.cjs"},
+  "devDependencies": {"jsdom": "27.0.0"}
+}

@@ -32,6 +32,9 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-dev.txt
       - run: python -m pip install -r requirements-dev.txt
+      - uses: actions/setup-node@v6.5.0
+        with:
+          node-version: '24'
       - name: Validate GitHub Actions workflows with actionlint
         shell: bash
         run: |
@@ -46,7 +49,14 @@ jobs:
           python -m compileall -q companion tools tests
           python -m ruff check .
       - name: Check browser JavaScript syntax
-        run: node --check companion/web/app.js
+        run: |
+          node --check companion/web/app.js
+          node --check companion/web/i18n.js
+          node tests/test_companion_i18n.js
+      - name: Render all companion pages in every language
+        run: |
+          npm ci --prefix tests/browser --no-audit --no-fund
+          node tests/browser/smoke.cjs
       - name: Verify generated locales, client TOCs and textures
         run: python tools/build.py --check
       - name: Check all Lua files with Lua 5.1

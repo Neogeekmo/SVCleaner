@@ -4,6 +4,7 @@ from __future__ import annotations
 import math
 import re
 from dataclasses import dataclass, field
+from i18n import Message, message
 
 LONG_OPEN = re.compile(r"\[(=*)\[")
 IDENTIFIER_TOKEN = re.compile(r"[A-Za-z_][A-Za-z_0-9]*")
@@ -13,7 +14,9 @@ STRING_CHUNKS = {'"': re.compile(r'[^"\\\r\n]+'), "'": re.compile(r"[^'\\\r\n]+"
 
 
 class DataError(ValueError):
-    pass
+    def __init__(self, text):
+        self.message = text if isinstance(text, Message) else message(text)
+        super().__init__(str(self.message))
 
 
 @dataclass
@@ -89,7 +92,7 @@ class Parser:
 
     def error(self, message):
         line = self.source.count("\n", 0, self.pos) + 1
-        raise DataError(f"{message} (ligne {line})")
+        raise DataError(Message("{message} (ligne {line})", {"message": message if isinstance(message, Message) else Message(message), "line": line}))
 
     def long_string(self):
         match = LONG_OPEN.match(self.source, self.pos)
@@ -129,7 +132,7 @@ class Parser:
 
     def expect(self, char):
         if not self.consume(char):
-            self.error(f"Attendu : {char}")
+            self.error(message("Attendu : {char}", char=char))
 
     def identifier(self):
         self.skip()
@@ -341,7 +344,7 @@ def differences(left, right, path=None, limit=3000):
     result = []
     def walk(a, b, current, blocked=False):
         if len(result) >= limit:
-            raise DataError(f"Diff trop grand (limite {limit}) ; choisissez un sous-bloc")
+            raise DataError(message("Diff trop grand (limite {limit}) ; choisissez un sous-bloc", limit=limit))
         if isinstance(a, Table) and isinstance(b, Table):
             keys = [key for key, _ in a.entries]
             keys.extend(key for key, _ in b.entries if not a.has(key))
@@ -356,7 +359,12 @@ def differences(left, right, path=None, limit=3000):
 
 def preview(value):
     if isinstance(value, Table):
-        return f"{{ {len(value.entries)} clés }}"
+        return message("{ {count} clés }", count=len(value.entries))
     if isinstance(value, int) and not isinstance(value, bool) and abs(value) > 2**53 - 1:
         return str(value)
     return value
+
+
+def short_preview(value):
+    shown = preview(value)
+    return shown if isinstance(shown, Message) else str(shown)[:500]

@@ -25,10 +25,13 @@ Conservez ce dossier lors d'une mise à jour. Ne lancez pas l'application dans l
 et gardez le dossier _internal avec l'exécutable. Aucun droit administrateur requis.
 Le dossier WoW choisi est mémorisé dans wow-path.txt ; supprimez ce fichier pour
 le choisir à nouveau. Ne partagez pas data/ ou wow-path.txt avec votre archive.
+L'interface suit la langue du navigateur. Le sélecteur de langue couvre les onze
+langues de WoW ; le choix est conservé dans data/preferences.json.
 
 Options (depuis PowerShell dans ce dossier) :
   .\\SVCleaner.exe --wow "D:\\Jeux\\World of Warcraft\\_retail_"
   .\\SVCleaner.exe --demo
+  .\\SVCleaner.exe --language enUS
   .\\SVCleaner.exe --help
 Pour un diagnostic, Lancer-SVCleaner.cmd garde les erreurs visibles.
 

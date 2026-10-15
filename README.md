@@ -104,7 +104,12 @@ python companion/app.py --wow "D:\Jeux\World of Warcraft\_retail_"
 
 The source version uses Python's standard library and needs no third-party runtime packages.
 
-The companion interface is currently in **French**. The steps below describe its actions in English.
+The companion supports **all eleven WoW languages**. It detects your browser's
+language initially; use the **Language** selector to change it. The choice is saved
+in `data/preferences.json`, across browser and server restarts. Menus, confirmations,
+server errors and backup messages follow this selection; addon names, character names
+and Lua keys/values are preserved. The launcher uses your system language; use
+`--language frFR` (or another WoW locale) to override it for a launch.
 
 To try the interface with isolated sample data:
 
@@ -238,7 +243,7 @@ The shipped TOCs declare the following client families:
 
 PTR and beta clients use their corresponding declared interfaces. The companion identifies the client family from the installation metadata; ambiguous clients remain marked as uncertain. Automated checks do not replace testing in each exact game client.
 
-The addon follows WoW's language: **English, French, German, European and Latin American Spanish, Italian, Brazilian Portuguese, Russian, Korean, Simplified Chinese, and Traditional Chinese**. The `enGB` and `ptPT` aliases use the `enUS` and `ptBR` catalogs respectively. The local companion is in **French**.
+Both interfaces support **English, French, German, European and Latin American Spanish, Italian, Brazilian Portuguese, Russian, Korean, Simplified Chinese, and Traditional Chinese**. The addon follows WoW's language; the companion has its own language selector. The `enGB` and `ptPT` aliases use the `enUS` and `ptBR` catalogs respectively.
 
 ---
 
@@ -265,6 +270,18 @@ Install the development dependencies to run the full test suite, including Lua 5
 python -m pip install -r requirements-dev.txt
 python tests/check.py
 python tools/build.py --check
+```
+
+The companion catalogs live in `companion/web/locales.json` and are shared by the
+browser and Python server. Keep each catalog complete and preserve named parameters
+such as `{count}`. Locale checks cover all catalogs, placeholders, HTTP responses,
+language persistence and user-data preservation. Browser navigation is also tested
+with isolated synthetic data in all eleven languages:
+
+```sh
+node tests/test_companion_i18n.js
+npm ci --prefix tests/browser
+node tests/browser/smoke.cjs
 ```
 
 `python tools/build.py --version v0.1.0` regenerates locales, client TOCs and textures,

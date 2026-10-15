@@ -7,6 +7,7 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
+from urllib.error import HTTPError
 from urllib.request import ProxyHandler, Request, build_opener
 from zipfile import ZipFile
 
@@ -21,7 +22,7 @@ def verify(archive_path, read_only=False):
         bundle = directory / "SVCleaner-Companion"
         executable = bundle / "SVCleaner.exe"
         assert executable.read_bytes()[:2] == b"MZ", "Expected a Windows executable"
-        for name in ("_internal/companion/web/index.html", "_internal/_tcl_data/init.tcl", "_internal/_tk_data/tk.tcl", "licenses/Python.txt", "licenses/Tcl-Tk.txt"):
+        for name in ("_internal/companion/web/index.html", "_internal/companion/web/i18n.js", "_internal/companion/web/locales.json", "_internal/_tcl_data/init.tcl", "_internal/_tk_data/tk.tcl", "licenses/Python.txt", "licenses/Tcl-Tk.txt"):
             assert (bundle / name).is_file(), f"Missing resource: {name}"
         root = directory / "WoW fictif" / "_retail_"
         (root / "Interface" / "AddOns").mkdir(parents=True)
@@ -79,8 +80,19 @@ def verify(archive_path, read_only=False):
                         with opener.open(request, timeout=30) as response:
                             return json.load(response)
 
-                    for path, marker in (("", b"<html"), ("app.js", b"function"), ("style.css", b"{"), ("logo.svg", b"<svg")):
+                    for path, marker in (("", b"<html"), ("app.js", b"function"), ("i18n.js", b"I18n"), ("style.css", b"{"), ("logo.svg", b"<svg")):
                         assert marker in get(path), "Missing web asset: " + path
+                    catalogs = json.loads(get("locales.json"))
+                    assert len(catalogs) == 11
+                    for language, catalog in catalogs.items():
+                        request = Request(url + "api/stage", json.dumps({"id": "missing", "operation": "delete-file"}).encode(), headers={"X-SVC-Token": state["csrf"], "X-SVC-Language": language})
+                        try:
+                            opener.open(request, timeout=15)
+                            raise AssertionError("Unknown record was accepted")
+                        except HTTPError as error:
+                            with error:
+                                assert error.code == 400
+                                assert json.load(error)["error"] == catalog["Fichier inconnu ; rescannez"]
                     action(state, post)
                 finally:
                     process.terminate()

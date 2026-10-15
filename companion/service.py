@@ -13,7 +13,8 @@ import time
 import uuid
 from pathlib import Path
 
-from lua_data import DataError, Table, at, differences, dump, identity, kind, literal, merge_values, parse, preview, safe_path, token, untoken
+from lua_data import DataError, Table, at, differences, dump, identity, kind, literal, merge_values, parse, preview, safe_path, short_preview, token, untoken
+from i18n import encoder, message
 from flavors import detect_client, toc_candidates
 from runtime import DATA, HOME
 
@@ -143,7 +144,7 @@ class Store:
                         for char in sorted(realm.iterdir()):
                             if char.is_dir() and not char.is_symlink():
                                 label = f"{char.name} - {realm.name}"
-                                characters.append({"account": account.name, "name": char.name, "realm": realm.name, "label": label, "status": "Dossier local · existence en jeu non vérifiée"})
+                                characters.append({"account": account.name, "name": char.name, "realm": realm.name, "label": label, "status": message("Dossier local · existence en jeu non vérifiée")})
                                 dirs.append((char / "SavedVariables", "character", account.name, label))
             dirs.append((self.root / "WTF" / "SavedVariables", "machine", "Installation", None))
             for folder, scope, account, character in dirs:
@@ -209,16 +210,16 @@ class Store:
             if char_match:
                 guid = char_match[2]
                 roster = self.roster(self.record(record_id)["account"])
-                char_status = "Observé par SVCleaner" if guid in roster else "Non observé · à vérifier"
+                char_status = message("Observé par SVCleaner" if guid in roster else "Non observé · à vérifier")
             elif isinstance(key, str) and " - " in key and path and untoken(path[-1]) in ("char", "profileKeys"):
                 known = any(c["account"] == self.record(record_id)["account"] and c["label"] == key for c in self.characters)
-                char_status = "Dossier local connu" if known else "Dossier local absent · à vérifier"
+                char_status = message("Dossier local connu" if known else "Dossier local absent · à vérifier")
             shown = preview(value)
             too_large = isinstance(shown, str) and len(shown) > 32768
             if too_large:
                 shown = shown[:300] + "…"
             unsafe_number = isinstance(value, int) and not isinstance(value, bool) and abs(value) > 2**53 - 1
-            items.append({"key": token(key), "path": item_path, "type": kind(value), "value": shown, "tooLarge": too_large or unsafe_number, "protected": ancestors_protected or identity(key, value), "characterStatus": char_status})
+            items.append({"key": token(key), "label": message("(valeur)") if not isinstance(current, Table) else None, "path": item_path, "type": kind(value), "value": shown, "tooLarge": too_large or unsafe_number, "protected": ancestors_protected or identity(key, value), "characterStatus": char_status})
         return {"items": items, "total": len(entries), "offset": offset, "path": path, "type": kind(current)}
 
     def roster(self, account):
@@ -242,7 +243,7 @@ class Store:
                 record = self.record(record_id)
                 if record["scope"] == "system" or record["addon"] == "SVCleaner":
                     raise DataError("Fichier protégé")
-                self.pending[record_id] = {"operation": "delete", "summary": "Mettre le fichier en quarantaine"}
+                self.pending[record_id] = {"operation": "delete", "summary": message("Mettre le fichier en quarantaine")}
                 return self.state()
             record = self.writable(record_id)
             roots = self.load(record_id)
@@ -282,8 +283,8 @@ class Store:
             else:
                 raise DataError("Opération inconnue")
             details = self.pending.get(record_id, {}).get("details", [])
-            details.append({"path": path, "before": str(preview(old))[:500], "after": str(preview(value))[:500] if operation in ("edit", "create") else "(supprimé)", "operation": operation})
-            self.pending[record_id] = {"operation": "write", "summary": "Modifier les données sélectionnées", "details": details}
+            details.append({"path": path, "before": short_preview(old), "after": short_preview(value) if operation in ("edit", "create") else message("(supprimé)"), "operation": operation})
+            self.pending[record_id] = {"operation": "write", "summary": message("Modifier les données sélectionnées"), "details": details}
             return self.state()
 
     def stage_delete_files(self, record_ids):
@@ -297,7 +298,7 @@ class Store:
                 raise DataError("La sélection contient un fichier protégé ; aucun fichier n’a été ajouté")
             pending = dict(self.pending)
             for record_id in unique_ids:
-                pending[record_id] = {"operation": "delete", "summary": "Suppression groupée · original sauvegardé à l’application"}
+                pending[record_id] = {"operation": "delete", "summary": message("Suppression groupée · original sauvegardé à l’application")}
             self.pending = pending
             return {"staged": len(unique_ids), "state": self.state()}
 
@@ -353,7 +354,7 @@ class Store:
             row["reason"] = "identity" if row["protected"] else "missing" if "nil" in (row["leftType"], row["rightType"]) else "type" if not row["copyable"] else "value"
             row["toLeft"] = row["copyable"] and not left_record["readOnly"]
             row["toRight"] = row["copyable"] and not right_record["readOnly"]
-        signature = digest(json.dumps(rows, sort_keys=True, ensure_ascii=True).encode())
+        signature = digest(json.dumps(rows, sort_keys=True, ensure_ascii=True, default=encoder("frFR")).encode())
         return {"rows": rows, "signature": signature, "leftReadOnly": left_record["readOnly"], "rightReadOnly": right_record["readOnly"]}
 
     def transfer(self, request):
@@ -381,8 +382,8 @@ class Store:
                 parent = at(target_roots, target_path[:-1])
                 parent.set(untoken(target_path[-1]), updated)
                 details = self.pending.get(target_id, {}).get("details", [])
-                details.append({"path": target_path, "before": str(preview(target))[:500], "after": f"{count} valeurs transférées", "operation": "merge"})
-                self.pending[target_id] = {"operation": "write", "summary": f"Fusion protégée : {count} valeurs", "details": details}
+                details.append({"path": target_path, "before": short_preview(target), "after": message("{count} valeurs transférées", count=count), "operation": "merge"})
+                self.pending[target_id] = {"operation": "write", "summary": message("Fusion protégée : {count} valeurs", count=count), "details": details}
             return {"changed": count, "state": self.state()}
 
     def discard(self):
@@ -438,7 +439,7 @@ class Store:
                         self.stage({"id": target_id, "path": path, "operation": operation, "value": desired, "valueType": "table" if isinstance(desired, Table) else kind(desired)})
                         imported += 1
                     except (DataError, KeyError, TypeError) as error:
-                        skipped.append(str(error))
+                        skipped.append(error.message if isinstance(error, DataError) else message("Demande invalide"))
             return {"imported": imported, "alreadyApplied": already_applied, "skipped": skipped, "state": self.state()}
 
     def cache_info(self, name="Cache"):
@@ -468,7 +469,7 @@ class Store:
                 raise DataError("Appliquez ou abandonnez le panier avant de mettre Cache en quarantaine")
             source = contained(self.root / name, self.root)
             if source != self.root / name or not source.is_dir() or source.is_symlink():
-                raise DataError(f"Dossier {name} absent ou redirigé ; opération refusée")
+                raise DataError(message("Dossier {name} absent ou redirigé ; opération refusée", name=name))
             transaction_id = time.strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:8]
             destination = contained(self.root / (name + ".SVCleaner-" + transaction_id), self.root)
             if destination.exists():
@@ -580,7 +581,7 @@ class Store:
                 source = contained(self.root / tx["backupPath"], self.root)
                 target = contained(self.root / cache_name, self.root)
                 if target.exists():
-                    raise DataError(f"WoW a déjà recréé {cache_name}. Restauration refusée pour préserver les nouveaux fichiers ; la sauvegarde reste disponible.")
+                    raise DataError(message("WoW a déjà recréé {cache_name}. Restauration refusée pour préserver les nouveaux fichiers ; la sauvegarde reste disponible.", cache_name=cache_name))
                 if source != self.root / tx["backupPath"] or not source.is_dir():
                     raise DataError("Sauvegarde Cache absente ou redirigée")
                 source.rename(target)

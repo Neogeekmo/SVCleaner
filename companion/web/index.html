@@ -1,32 +1,32 @@
-<!doctype html>
-<html lang="fr" data-theme="dark">
+﻿<!doctype html>
+<html lang="en-US" data-theme="dark">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SVCleaner — Votre compte, au propre</title>
-  <link rel="stylesheet" href="/style.css"><script defer src="/app.js"></script>
+  <title data-i18n="SVCleaner — Votre compte, au propre">SVCleaner</title>
+  <link rel="stylesheet" href="/style.css"><script defer src="/i18n.js"></script><script defer src="/app.js"></script>
 </head>
 <body>
   <aside class="sidebar">
-    <a class="brand" href="/"><img src="/logo.svg" alt="Logo SV Cleaner"><span>SV<span class="gold">Cleaner</span><small>WORLD OF WARCRAFT</small></span></a>
-    <div class="nav-label">ESPACE DE TRAVAIL</div>
-    <nav aria-label="Navigation principale">
-      <button data-page="overview" class="active"><span>◈</span> Vue d’ensemble</button>
+    <a class="brand" href="/"><img src="/logo.svg" alt="SV Cleaner"><span>SV<span class="gold">Cleaner</span><small>WORLD OF WARCRAFT</small></span></a>
+    <div class="nav-label" data-i18n="ESPACE DE TRAVAIL">WORKSPACE</div>
+    <nav aria-label="Main navigation" data-i18n-aria-label="Navigation principale">
+      <button data-page="overview" class="active"><span>◈</span> <span data-i18n="Vue d’ensemble">Overview</span></button>
       <button data-page="files"><span>▤</span> SavedVariables <b id="nav-files">0</b></button>
-      <button data-page="orphans"><span>◇</span> À nettoyer <b id="nav-orphans">0</b></button>
-      <button data-page="characters"><span>♙</span> Personnages</button>
-      <button data-page="diff"><span>⇄</span> Comparer les données</button>
-      <button data-page="cache"><span>↻</span> Caches & dépannage</button>
-      <button data-page="history"><span>◷</span> Sauvegardes</button>
+      <button data-page="orphans"><span>◇</span> <span data-i18n="À nettoyer">To clean</span> <b id="nav-orphans">0</b></button>
+      <button data-page="characters"><span>♙</span> <span data-i18n="Personnages">Characters</span></button>
+      <button data-page="diff"><span>⇄</span> <span data-i18n="Comparer les données">Compare data</span></button>
+      <button data-page="cache"><span>↻</span> <span data-i18n="Caches & dépannage">Caches & troubleshooting</span></button>
+      <button data-page="history"><span>◷</span> <span data-i18n="Sauvegardes">Backups</span></button>
     </nav>
-    <div class="sidebar-bottom"><span class="local-dot"></span> LOCAL · AUCUN ENVOI<small>Vos données restent sur votre PC.</small><button id="manifest" class="quiet">↗ Générer le manifeste de l’addon</button></div>
+    <div class="sidebar-bottom"><span class="local-dot"></span> <span data-i18n="LOCAL · AUCUN ENVOI">LOCAL · NO UPLOADS</span><small data-i18n="Vos données restent sur votre PC.">Your data stays on your PC.</small><button id="manifest" class="quiet" data-i18n="↗ Générer le manifeste de l’addon">↗ Generate addon manifest</button></div>
   </aside>
   <main>
-    <header><div class="breadcrumb">Compte WoW <span>/</span> <span id="crumb">Vue d’ensemble</span></div><div class="header-actions"><label class="version-control">Version WoW <select id="wow-version" aria-label="Version de World of Warcraft"><option>Détection…</option></select></label><button id="theme" class="icon-btn" aria-label="Changer le thème">☼</button><button id="scan" class="button small">↻ Actualiser l’analyse</button></div></header>
-    <section class="intro"><div><div class="eyebrow">MOINS DE DÉSORDRE. PLUS DE CONTRÔLE.</div><h1 id="page-title">Votre compte, au propre.</h1><p id="page-subtitle">Comprenez ce que vos addons sauvegardent. Gardez ce qui compte.</p></div><button id="import" class="button">↓ Importer les demandes en jeu</button></section>
+    <header><div class="breadcrumb"><span data-i18n="Compte WoW">WoW account</span> <span>/</span> <span id="crumb" data-i18n="Vue d’ensemble">Overview</span></div><div class="header-actions"><label class="version-control"><span data-i18n="Langue">Language</span> <select id="language" aria-label="Language" data-i18n-aria-label="Langue"><option>English</option></select></label><label class="version-control"><span data-i18n="Version WoW">WoW version</span> <select id="wow-version" aria-label="World of Warcraft version" data-i18n-aria-label="Version de World of Warcraft"><option data-i18n="Détection…">Detecting…</option></select></label><button id="theme" class="icon-btn" aria-label="Change theme" data-i18n-aria-label="Changer le thème">☼</button><button id="scan" class="button small" data-i18n="↻ Actualiser l’analyse">↻ Refresh scan</button></div></header>
+    <section class="intro"><div><div class="eyebrow" data-i18n="MOINS DE DÉSORDRE. PLUS DE CONTRÔLE.">LESS CLUTTER. MORE CONTROL.</div><h1 id="page-title">SVCleaner</h1><p id="page-subtitle"></p></div><button id="import" class="button" data-i18n="↓ Importer les demandes en jeu">↓ Import in-game requests</button></section>
     <div id="location" class="location"></div>
     <div id="content"></div>
-    <section id="basket" class="basket hidden" aria-label="Panier des modifications"></section>
-    <footer><span>SV Cleaner <b>0.1.0</b> · <span id="active-version">Retail</span></span><span id="scan-time"></span><span>Des fichiers actifs plus légers. Des sauvegardes toujours disponibles.</span></footer>
+    <section id="basket" class="basket hidden" aria-label="Change basket" data-i18n-aria-label="Panier des modifications"></section>
+    <footer><span>SV Cleaner · <span id="active-version">WoW</span></span><span id="scan-time"></span><span data-i18n="Des fichiers actifs plus légers. Des sauvegardes toujours disponibles.">Smaller active files. Backups always available.</span></footer>
   </main>
   <div id="toast" role="status" class="toast hidden"></div>
   <dialog id="modal"><div id="modal-content"></div></dialog>
