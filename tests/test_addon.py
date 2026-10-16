@@ -7,7 +7,7 @@ try:
 except ImportError:
     LuaRuntime = None
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent / "addon"
 
 
 @unittest.skipIf(LuaRuntime is None, "Optional Lua 5.1 runtime (lupa) is unavailable")

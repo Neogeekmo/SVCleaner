@@ -4,13 +4,17 @@ package-as: SVCleaner
 enable-toc-creation: no
 enable-nolib-creation: no
 
+move-folders:
+  SVCleaner/addon: SVCleaner
+
 ignore:
   # Ship TOCs, runtime Lua modules, TGA UI assets, LICENSE and NOTICE.
   - companion
   - tools
   - tests
   - docs
-  - readme
+  - artwork
+  - addon/locales
   - data
   - output
   - __pycache__
@@ -33,9 +37,9 @@ ignore:
   - requirements-packaging.txt
   - AGENTS.md
   - README.md
-  - Lancer-SVCleaner.cmd
-  # PNG master/reference images are development assets, never loaded by WoW.
-  - "Assets/*.png"
-  - "Assets/*.svg"
+  # Development launchers and source artwork are never loaded by WoW.
+  - "*.cmd"
+  - "addon/Assets/*.png"
+  - "addon/Assets/*.svg"
   - "*.pyc"
   - "*.code-workspace"

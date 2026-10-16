@@ -176,17 +176,18 @@ def install(store, language=None):
         print(message("Addon installé dans {target}", target=str(target)).render(language or system_language()))
         return
     sys.path.insert(0, str(PROJECT / "tools"))
-    from package_addon import flavor_tocs, package_version
+    from package_addon import flavor_tocs, package_version, runtime_files, runtime_name
     version = package_version()
     target.mkdir()
-    for filename in ("SVCleaner.toc", "Compat.lua", "Locale.lua", "Core.lua", "Widgets.lua", "Compare.lua", "UI.lua", "LICENSE", "NOTICE"):
-        if filename.endswith(".toc"):
-            (target / filename).write_text((PROJECT / filename).read_text(encoding="utf-8").replace("@project-version@", version), encoding="utf-8")
+    for source in runtime_files():
+        if source.name == "Manifest.lua":
+            continue  # Generate a manifest for the selected installation below.
+        destination = target / runtime_name(source)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        if source.suffix == ".toc":
+            destination.write_text(source.read_text(encoding="utf-8").replace("@project-version@", version), encoding="utf-8")
         else:
-            shutil.copy2(PROJECT / filename, target / filename)
-    (target / "Assets").mkdir()
-    for asset in ("logo.tga", "icons.tga"):
-        shutil.copy2(PROJECT / "Assets" / asset, target / "Assets" / asset)
+            shutil.copy2(source, destination)
     for filename, content in flavor_tocs().items():
         (target / filename).write_text(content.replace("@project-version@", version), encoding="utf-8")
     store.manifest(target / "Manifest.lua")

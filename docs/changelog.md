@@ -1,5 +1,6 @@
 # Unreleased
 
+- Sources séparées : addon WoW dans `addon/`, companion dans `companion/`, illustrations dans `docs/assets/` et source du logo dans `artwork/` ; suppression du lanceur CMD et de l’ancienne archive Python séparée.
 - Companion traduit dans les onze langues de WoW : détection navigateur, sélecteur de langue persistant, erreurs serveur et dialogues localisés ; paramètres et données utilisateur préservés.
 - Rétablissement de l’écran Personnages du companion, avec recherche et accès aux fichiers locaux.
 - Companion Windows 64 bits portable : exécutable avec Python embarqué, choix du dossier WoW au premier lancement, sauvegardes persistantes et publication du ZIP via GitHub Releases.

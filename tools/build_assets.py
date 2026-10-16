@@ -6,13 +6,13 @@ from PIL import Image, ImageOps
 
 
 root = Path(__file__).resolve().parent.parent
-source = root / "Assets" / "logo.png"
+source = root / "artwork" / "logo.png"
 with Image.open(source) as original:
     width, height = original.size
     scaled = ImageOps.contain(original.convert("RGBA"), (512, 512), Image.Resampling.LANCZOS)
     texture = Image.new("RGBA", (512, 512), (0, 0, 0, 0))
     texture.paste(scaled, ((512 - scaled.width) // 2, (512 - scaled.height) // 2))
-    texture.save(root / "Assets" / "logo.tga")
+    texture.save(root / "addon" / "Assets" / "logo.tga")
 
 # Keep the existing browser asset URL so running companions need no restart.
 # Preserve the edited PNG's transparency in the browser export.

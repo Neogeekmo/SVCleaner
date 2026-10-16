@@ -6,3 +6,4 @@ FROZEN = bool(getattr(sys, "frozen", False))
 PROJECT = Path(sys._MEIPASS) if FROZEN else Path(__file__).resolve().parent.parent
 HOME = Path(sys.executable).resolve().parent if FROZEN else PROJECT
 DATA = HOME / "data"
+MANIFEST = HOME / "Manifest.lua" if FROZEN else PROJECT / "addon" / "Manifest.lua"

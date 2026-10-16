@@ -1,6 +1,8 @@
 """Exercise client selection and the real archive contract without touching WoW."""
 import sys
 import runpy
+import shutil
+import json
 import subprocess
 import tempfile
 import unittest
@@ -12,7 +14,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "companion"))
 sys.path.insert(0, str(ROOT / "tools"))
 from flavors import detect_client, toc_candidates
-from package_addon import build, build_companion, flavor_tocs, runtime_files
+from package_addon import ADDON, build, flavor_tocs, runtime_files, runtime_name
 from verify_archive import verify
 from service import Store
 
@@ -87,27 +89,32 @@ class PackageTests(unittest.TestCase):
                 archive.writestr("SVCleaner/CHANGELOG.md", "# v1.2.3\n\nRelease fixes.\n")
             verify(archive_path, version="v1.2.3")
 
-    def test_companion_archive_runs_and_installs_without_repository(self):
+    def test_companion_source_runs_and_installs_from_another_working_directory(self):
         with tempfile.TemporaryDirectory(prefix="svc-companion-") as temporary:
             directory = Path(temporary)
-            archive_path = build_companion(directory / "companion.zip", version="v1.2.3")
-            with ZipFile(archive_path) as archive:
-                self.assertFalse(any("private.py" in name or "/data/" in name or "__pycache__" in name for name in archive.namelist()))
-                archive.extractall(directory)
-            project = directory / "SVCleaner-Companion"
-            # A fresh process must resolve every import inside the extracted ZIP,
+            project = directory / "source"
+            shutil.copytree(ADDON, project / "addon")
+            shutil.copytree(ROOT / "companion", project / "companion", ignore=shutil.ignore_patterns("__pycache__"))
+            (project / "tools").mkdir()
+            shutil.copy2(ROOT / "tools" / "package_addon.py", project / "tools" / "package_addon.py")
+            for name in ("LICENSE", "NOTICE"):
+                shutil.copy2(ROOT / name, project / name)
+            # A fresh process must resolve every import inside the source tree,
             # rather than borrowing modules from this test suite's sys.path.
             root = directory / "wow" / "_retail_"
             (root / "Interface" / "AddOns").mkdir(parents=True)
             command = [sys.executable, str(project / "companion" / "app.py"), "--wow", str(root)]
             subprocess.run(command + ["--scan"], cwd=directory, capture_output=True, text=True, check=True, timeout=30)
+            manifest = subprocess.run(command + ["--manifest"], cwd=directory, capture_output=True, text=True, check=True, timeout=30)
+            self.assertEqual(Path(json.loads(manifest.stdout)["path"]).resolve(), (project / "addon" / "Manifest.lua").resolve())
+            self.assertFalse((project / "Manifest.lua").exists())
             # Isolate the synthetic install from game clients on the developer's PC.
             # Production process guards are exercised separately in test_service.
             driver = "import sys, runpy; from pathlib import Path; from unittest.mock import patch; app = sys.argv[1]; sys.path.insert(0, str(Path(app).parent)); sys.argv = sys.argv[1:]; guard = patch('service.check_game_closed'); guard.start(); runpy.run_path(app, run_name='__main__')"
             subprocess.run([sys.executable, "-c", driver] + command[1:] + ["--install-addon"], cwd=directory, capture_output=True, text=True, check=True, timeout=30)
             installed = root / "Interface" / "AddOns" / "SVCleaner"
-            self.assertIn("## Version: v1.2.3", (installed / "SVCleaner.toc").read_text(encoding="utf-8"))
-            self.assertEqual({p.relative_to(installed).as_posix() for p in installed.rglob("*") if p.is_file()}, {p.relative_to(ROOT).as_posix() for p in runtime_files()} | set(flavor_tocs()))
+            self.assertIn("## Version: dev", (installed / "SVCleaner.toc").read_text(encoding="utf-8"))
+            self.assertEqual({p.relative_to(installed).as_posix() for p in installed.rglob("*") if p.is_file()}, {runtime_name(p) for p in runtime_files()} | set(flavor_tocs()))
 
     def test_frozen_paths_keep_resources_and_persistent_data_separate(self):
         with tempfile.TemporaryDirectory(prefix="svc-paths-") as temporary:
@@ -175,12 +182,12 @@ class PackageTests(unittest.TestCase):
             for toc in installed.glob("*.toc"):
                 self.assertIn("## Version: v1.2.3", toc.read_text(encoding="utf-8"))
             self.assertIn("SVC.Manifest", (installed / "Manifest.lua").read_text())
-            self.assertEqual({p.relative_to(installed).as_posix() for p in installed.rglob("*") if p.is_file()}, {p.relative_to(ROOT).as_posix() for p in runtime_files()} | set(flavor_tocs()))
+            self.assertEqual({p.relative_to(installed).as_posix() for p in installed.rglob("*") if p.is_file()}, {runtime_name(p) for p in runtime_files()} | set(flavor_tocs()))
 
     def test_archive_contains_only_runtime_and_all_flavor_tocs(self):
         with tempfile.TemporaryDirectory(prefix="svc-package-") as temporary:
             with ZipFile(build(Path(temporary) / "addon.zip")) as archive:
-                expected = {"SVCleaner/" + path.relative_to(ROOT).as_posix() for path in runtime_files()}
+                expected = {"SVCleaner/" + runtime_name(path) for path in runtime_files()}
                 expected.update("SVCleaner/" + name for name in flavor_tocs())
                 self.assertEqual(set(archive.namelist()), expected)
                 for name in archive.namelist():
@@ -203,7 +210,7 @@ class PackageTests(unittest.TestCase):
             with patch("app.check_game_closed"):
                 install(store)
             target = root / "Interface" / "AddOns" / "SVCleaner"
-            expected = {path.relative_to(ROOT).as_posix() for path in runtime_files()} | set(flavor_tocs())
+            expected = {runtime_name(path) for path in runtime_files()} | set(flavor_tocs())
             self.assertEqual({p.relative_to(target).as_posix() for p in target.rglob("*") if p.is_file()}, expected)
             self.assertIn("SVC.Manifest", (target / "Manifest.lua").read_text())
             for toc in target.glob("*.toc"):

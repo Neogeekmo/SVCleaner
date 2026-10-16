@@ -86,7 +86,7 @@ def render(view="route",theme="dark",locale="frFR"):
     output=ROOT/"output";output.mkdir(exist_ok=True)
     filename="addon-ui-light.html" if theme=="light" else "addon-ui-preview.html" if view=="route" else f"addon-ui-{view}.html"
     if locale=="enUS": filename=f"addon-ui-en-{view}.html"
-    (output/filename).write_text(page,encoding="utf-8");shutil.copy2(ROOT/"Assets"/"logo.png",output/"addon-preview-logo.png");print(output/filename)
+    (output/filename).write_text(page,encoding="utf-8");shutil.copy2(ROOT/"artwork"/"logo.png",output/"addon-preview-logo.png");print(output/filename)
 
 
 if __name__=="__main__":

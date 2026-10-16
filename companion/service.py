@@ -16,7 +16,7 @@ from pathlib import Path
 from lua_data import DataError, Table, at, differences, dump, identity, kind, literal, merge_values, parse, preview, safe_path, short_preview, token, untoken
 from i18n import encoder, message
 from flavors import detect_client, toc_candidates
-from runtime import DATA, HOME
+from runtime import DATA, MANIFEST
 
 DEFAULT_WOW = Path(r"D:\Jeux\World of Warcraft\_retail_")
 CHAR_GUID = re.compile(r"^(.*?)?-?(Player-\d+-[0-9a-fA-F]+)$")
@@ -629,8 +629,8 @@ class Store:
             return self.state()
 
     def manifest(self, destination=None):
-        # Keep exports beside the executable, outside bundled resources.
-        destination = Path(destination or HOME / "Manifest.lua")
+        # Source exports belong to addon/; portable exports stay beside the EXE.
+        destination = Path(destination or MANIFEST)
         table = Table()
         for addon in self.addons.values():
             node = Table()

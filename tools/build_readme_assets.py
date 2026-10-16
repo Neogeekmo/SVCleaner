@@ -3,7 +3,7 @@ import base64
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-OUT = ROOT / "readme" / "assets"
+OUT = ROOT / "docs" / "assets"
 
 
 def svg(name, width, height, title, content):
@@ -14,7 +14,7 @@ def svg(name, width, height, title, content):
 
 def build():
     OUT.mkdir(parents=True, exist_ok=True)
-    logo = base64.b64encode((ROOT / "Assets" / "logo.png").read_bytes()).decode()
+    logo = base64.b64encode((ROOT / "artwork" / "logo.png").read_bytes()).decode()
     svg("banner.svg", 1000, 280, "SV Cleaner — SavedVariables and WoW maintenance", f'''
 <defs>
   <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#171c29"/><stop offset="1" stop-color="#0c1019"/></linearGradient>
@@ -36,7 +36,6 @@ def build():
     for filename, title, subtitle, icon in (
         ("install-button.svg", "Install the addon", "OPEN IN WOW", '<path d="M28 21v18m-7-7 7 7 7-7M17 42h22"/>'),
         ("companion-button.svg", "Local companion", "MANAGE YOUR FILES", '<rect x="17" y="20" width="25" height="19" rx="3"/><path d="M29 39v6m-7 0h14"/>'),
-        ("guide-button.svg", "User guide (French)", "READ THE WORKFLOW", '<path d="M18 19h14v27H18zM32 19h8v27h-8M22 25h6m-6 6h6"/>'),
     ):
         svg(filename, 260, 64, title, f'''<rect x="1" y="1" width="258" height="62" rx="12" fill="#171c29" stroke="#3b455b"/>
 <g fill="none" stroke="#ed7771" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">{icon}</g>
@@ -44,7 +43,7 @@ def build():
     for filename, title, subtitle in (
         ("features.svg", "Your data, under control", "Inventory · editing · comparison · cleanup"),
         ("workflow.svg", "Prepare in game. Apply on disk.", "Review your changes, then back up your files."),
-        ("commands.svg", "A simple starting point", "/svc in WoW · Lancer-SVCleaner.cmd on your PC"),
+        ("commands.svg", "A simple starting point", "/svc in WoW · SVCleaner.exe on your PC"),
     ):
         svg(filename, 1000, 100, title, f'''<rect x="1" y="1" width="998" height="98" rx="16" fill="#171c29" stroke="#303748"/>
 <rect x="28" y="26" width="4" height="48" rx="2" fill="#ed7771"/>

@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from package_addon import ROOT, runtime_files, flavor_tocs
+from package_addon import ROOT, runtime_files, runtime_name, flavor_tocs
 
 
 def main():
@@ -27,10 +27,10 @@ def main():
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(path, target)
     for filename, content in flavor_tocs().items():
-        (checkout / filename).write_text(content, encoding="utf-8")
+        (checkout / "addon" / filename).write_text(content, encoding="utf-8")
     # Tracked canaries ensure the pkgmeta rules, rather than Git's untracked-file
     # exclusion, actually keep the companion, private data and masters out.
-    for filename in ("companion/private.py", "tools/build.py", "tests/check.py", "docs/notes.md", "readme/assets/banner.svg", "readme/assets/grid-preview.png", "data/private.original", "output/private.zip", "README.md", "Lancer-SVCleaner.cmd", "Assets/logo.png", "Assets/source.svg", "debug.pyc", "pyproject.toml", "requirements-dev.txt", "requirements-packaging.txt", ".gitattributes", ".github/workflows/ci.yml", ".coverage", "coverage.xml", "htmlcov/index.html", ".venv/pyvenv.cfg", ".venv-packaging/pyvenv.cfg", ".ruff_cache/cache", "AGENTS.md"):
+    for filename in ("companion/private.py", "tools/build.py", "tests/check.py", "docs/notes.md", "docs/assets/banner.svg", "docs/assets/grid-preview.png", "data/private.original", "output/private.zip", "README.md", "dev.cmd", "artwork/logo.png", "addon/Assets/source.svg", "addon/Assets/source.png", "addon/locales/private.json", "debug.pyc", "pyproject.toml", "requirements-dev.txt", "requirements-packaging.txt", ".gitattributes", ".github/workflows/ci.yml", ".coverage", "coverage.xml", "htmlcov/index.html", ".venv/pyvenv.cfg", ".venv-packaging/pyvenv.cfg", ".ruff_cache/cache", "AGENTS.md"):
         target = checkout / filename
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text("PACKAGING CANARY - synthetic, no user data", encoding="utf-8")
@@ -52,7 +52,7 @@ def main():
         raise SystemExit("Packager failed; inspect " + str(output / "build.log"))
     folder = checkout / ".release" / "SVCleaner"
     actual = {path.relative_to(folder).as_posix() for path in folder.rglob("*") if path.is_file()}
-    expected = {path.relative_to(ROOT).as_posix() for path in runtime_files()} | set(flavor_tocs())
+    expected = {runtime_name(path) for path in runtime_files()} | set(flavor_tocs())
     expected.update(actual & {"CHANGELOG.md"})
     report = {"checkout": str(checkout), "actual": sorted(actual), "expected": sorted(expected), "passed": actual == expected}
     (output / "result.json").write_text(json.dumps(report, indent=2), encoding="utf-8")

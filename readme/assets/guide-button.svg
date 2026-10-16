@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="260" height="64" viewBox="0 0 260 64" role="img" aria-labelledby="title">
-<title id="title">User guide (French)</title>
-<rect x="1" y="1" width="258" height="62" rx="12" fill="#171c29" stroke="#3b455b"/>
-<g fill="none" stroke="#ed7771" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 19h14v27H18zM32 19h8v27h-8M22 25h6m-6 6h6"/></g>
-<g font-family="Segoe UI,Arial,sans-serif"><text x="58" y="28" fill="#f4f5fa" font-size="15" font-weight="600">User guide (French)</text><text x="58" y="45" fill="#aab5cb" font-size="9" letter-spacing=".8">READ THE WORKFLOW</text></g>
-</svg>

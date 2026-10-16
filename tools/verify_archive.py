@@ -3,11 +3,11 @@ import argparse
 import re
 from zipfile import ZipFile
 
-from package_addon import ROOT, flavor_tocs, runtime_files
+from package_addon import flavor_tocs, runtime_files, runtime_name
 
 
 def verify(path, version=None):
-    expected = {"SVCleaner/" + p.relative_to(ROOT).as_posix() for p in runtime_files()}
+    expected = {"SVCleaner/" + runtime_name(p) for p in runtime_files()}
     expected.update("SVCleaner/" + name for name in flavor_tocs())
     with ZipFile(path) as archive:
         files = [info.filename for info in archive.infolist() if not info.is_dir()]
@@ -19,7 +19,7 @@ def verify(path, version=None):
         corrupt = archive.testzip()
         if corrupt:
             raise ValueError("Corrupt archive entry: " + corrupt)
-        modules = [p.relative_to(ROOT).as_posix() for p in runtime_files() if p.suffix == ".lua"]
+        modules = [runtime_name(p) for p in runtime_files() if p.suffix == ".lua"]
         for name in sorted(expected):
             data = archive.read(name)
             if not data:

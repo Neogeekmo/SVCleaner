@@ -66,7 +66,7 @@ jobs:
           from lupa.lua51 import LuaRuntime
           lua = LuaRuntime()
           compile_lua = lua.eval('function(source, name) local fn, err = loadstring(source, name); assert(fn, err) end')
-          for path in Path('.').glob('*.lua'):
+          for path in Path('addon').glob('*.lua'):
               compile_lua(path.read_text(encoding='utf-8'), str(path))
 
   tests:
@@ -168,15 +168,12 @@ jobs:
           pandoc: 'false'
       - name: Validate the archive after the publication pass
         run: python tools/verify_archive.py .release/*.zip
-      - name: Build the separate Python companion
-        run: python tools/package_addon.py --companion
       - name: Keep installable archives
         uses: actions/upload-artifact@v7.0.2
         with:
           name: packages
           path: |
             .release/*.zip
-            output/SVCleaner-Companion-*.zip
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 14

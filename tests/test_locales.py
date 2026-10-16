@@ -14,8 +14,8 @@ ROOT = Path(__file__).resolve().parent.parent
 @unittest.skipIf(LuaRuntime is None, "Lua 5.1 unavailable")
 class LocaleTests(unittest.TestCase):
     def test_all_catalogs_have_matching_format_arguments_and_client_fonts(self):
-        data = json.loads((ROOT / "tools" / "locales.json").read_text(encoding="utf-8"))
-        grid = json.loads((ROOT / "tools" / "grid_locales.json").read_text(encoding="utf-8"))
+        data = json.loads((ROOT / "addon" / "locales" / "locales.json").read_text(encoding="utf-8"))
+        grid = json.loads((ROOT / "addon" / "locales" / "grid_locales.json").read_text(encoding="utf-8"))
         data["keys"].extend(grid["keys"]); data["locales"]["enUS"].extend(grid["locales"]["enUS"])
         keys = data["keys"]
         for locale in ("enUS", "enGB", "frFR", "deDE", "esES", "esMX", "itIT", "ptBR", "ptPT", "ruRU", "koKR", "zhCN", "zhTW", "unknown"):
@@ -23,7 +23,7 @@ class LocaleTests(unittest.TestCase):
                 lua=LuaRuntime(unpack_returned_tuples=True)
                 lua.globals().clientLocale=locale
                 lua.execute('SVC={}; STANDARD_TEXT_FONT="ClientLocalizedFont"; function GetLocale() return clientLocale end')
-                lua.execute((ROOT / "Locale.lua").read_text(encoding="utf-8"), "SVCleaner",lua.globals().SVC)
+                lua.execute((ROOT / "addon" / "Locale.lua").read_text(encoding="utf-8"), "SVCleaner",lua.globals().SVC)
                 self.assertEqual(lua.globals().SVC.font,"ClientLocalizedFont")
                 catalog=lua.globals().SVC.L
                 for key,base in zip(keys,data["locales"]["enUS"]):

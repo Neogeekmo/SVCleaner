@@ -6,28 +6,28 @@ import sys
 import tempfile
 from pathlib import Path
 
-from package_addon import ROOT, build, build_companion, flavor_tocs
+from package_addon import ADDON, ROOT, build, flavor_tocs
 
-GENERATED = ["Locale.lua", "Assets/logo.tga", "Assets/icons.tga", "companion/web/logo.svg"]
+GENERATED = ["addon/Locale.lua", "addon/Assets/logo.tga", "addon/Assets/icons.tga", "companion/web/logo.svg"]
 
 
 def generate():
     for script in ("build_locales.py", "build_assets.py", "build_icons.py"):
         subprocess.run([sys.executable, str(ROOT / "tools" / script)], check=True)
     for name, content in flavor_tocs().items():
-        (ROOT / name).write_text(content, encoding="utf-8", newline="\n")
+        (ADDON / name).write_text(content, encoding="utf-8", newline="\n")
 
 
 def check():
     with tempfile.TemporaryDirectory(prefix="svc-generated-") as temporary:
         staging = Path(temporary)
         shutil.copytree(ROOT / "tools", staging / "tools", ignore=shutil.ignore_patterns("__pycache__"))
-        shutil.copytree(ROOT / "Assets", staging / "Assets")
-        shutil.copy2(ROOT / "SVCleaner.toc", staging / "SVCleaner.toc")
+        shutil.copytree(ADDON, staging / "addon")
+        shutil.copytree(ROOT / "artwork", staging / "artwork")
         (staging / "companion" / "web").mkdir(parents=True)
         subprocess.run([sys.executable, str(staging / "tools" / "build.py"), "--generate-only"], check=True)
         stale = []
-        for name in GENERATED + list(flavor_tocs()):
+        for name in GENERATED + ["addon/" + name for name in flavor_tocs()]:
             original = ROOT / name
             generated = staging / name
             if original.suffix in (".lua", ".toc", ".svg"):
@@ -54,7 +54,6 @@ def main():
     generate()
     if not args.generate_only:
         print(build(version=args.version))
-        print(build_companion(version=args.version))
 
 
 if __name__ == "__main__":

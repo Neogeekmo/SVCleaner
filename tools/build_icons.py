@@ -22,4 +22,4 @@ for i in range(8):
     elif i == 7:
         line([(7, 10), (25, 10)]); line([(20, 5), (25, 10), (20, 15)])
         line([(25, 22), (7, 22)]); line([(12, 17), (7, 22), (12, 27)])
-image.save(ROOT / "Assets" / "icons.tga")
+image.save(ROOT / "addon" / "Assets" / "icons.tga")

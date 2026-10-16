@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
-from package_addon import ROOT, runtime_files, flavor_tocs, package_version
+from package_addon import ROOT, runtime_files, runtime_name, flavor_tocs, package_version
 
 
 def sync(client):
@@ -23,7 +23,7 @@ def sync(client):
     paths=[path for path in runtime_files() if path.name!="Manifest.lua"]
     variants=flavor_tocs()
     version=package_version()
-    relative=[path.relative_to(ROOT) for path in paths]+[Path(name) for name in variants]
+    relative=[Path(runtime_name(path)) for path in paths]+[Path(name) for name in variants]
     for name in relative:
         if not (target/name).resolve().is_relative_to(target):
             raise ValueError("Runtime path escaped addon folder")
@@ -34,7 +34,7 @@ def sync(client):
             source=target/name
             if source.is_file(): archive.write(source,"SVCleaner/"+name.as_posix())
     for path in paths:
-        destination=target/path.relative_to(ROOT); destination.parent.mkdir(parents=True,exist_ok=True)
+        destination=target/Path(runtime_name(path)); destination.parent.mkdir(parents=True,exist_ok=True)
         if path.suffix == ".toc":
             destination.write_text(path.read_text(encoding="utf-8").replace("@project-version@", version), encoding="utf-8")
         else:

@@ -1,7 +1,7 @@
 <a name="readme-top"></a>
 
 <p align="center">
-  <img src="readme/assets/banner.svg" alt="SV Cleaner — Explore, compare and clean your WoW SavedVariables" width="1000">
+  <img src="docs/assets/banner.svg" alt="SV Cleaner — Explore, compare and clean your WoW SavedVariables" width="1000">
 </p>
 
 <h1 align="center">Your data. A clearer interface.</h1>
@@ -13,8 +13,8 @@
 </p>
 
 <p align="center">
-  <a href="#installation"><img src="readme/assets/install-button.svg" alt="Install the WoW addon" width="260"></a>
-  <a href="#local-companion"><img src="readme/assets/companion-button.svg" alt="Start the local companion" width="260"></a>
+  <a href="#installation"><img src="docs/assets/install-button.svg" alt="Install the WoW addon" width="260"></a>
+  <a href="#local-companion"><img src="docs/assets/companion-button.svg" alt="Start the local companion" width="260"></a>
 </p>
 
 <p align="center">
@@ -96,10 +96,16 @@ To try the portable application with isolated sample data:
 .\SVCleaner.exe --demo
 ```
 
-**From source (Python 3.10+):** use `Lancer-SVCleaner.cmd` in the source archive or:
+**From source (Python 3.10+, Windows, Linux or macOS):** run Python directly from the repository root:
 
 ```powershell
 python companion/app.py --wow "D:\Jeux\World of Warcraft\_retail_"
+```
+
+On Linux or macOS, use your installation's client folder, for example:
+
+```sh
+python3 companion/app.py --wow "/home/you/Games/World of Warcraft/_retail_"
 ```
 
 The source version uses Python's standard library and needs no third-party runtime packages.
@@ -120,7 +126,7 @@ python companion/app.py --demo
 ---
 
 <p align="center">
-  <img src="readme/assets/features.svg" alt="Your data, under control — inventory, editing, comparison and cleanup" width="1000">
+  <img src="docs/assets/features.svg" alt="Your data, under control — inventory, editing, comparison and cleanup" width="1000">
 </p>
 
 ## Features
@@ -204,14 +210,14 @@ Copies preserve destination keys and the parent identifier. They operate on exis
 <details>
   <summary><strong>Data grid and comparison previews</strong></summary>
   <p>These previews use the Lua layout with sample data and a substitute font. They are rendered outside the game.</p>
-  <p><img src="readme/assets/grid-preview.png" alt="Key, type and value grid with an editor below the selection" width="1000"></p>
-  <p><img src="readme/assets/compare-preview.png" alt="Elowen and Thalion comparison with protected sample identifiers and named copy actions" width="1000"></p>
+  <p><img src="docs/assets/grid-preview.png" alt="Key, type and value grid with an editor below the selection" width="1000"></p>
+  <p><img src="docs/assets/compare-preview.png" alt="Elowen and Thalion comparison with protected sample identifiers and named copy actions" width="1000"></p>
 </details>
 
 ---
 
 <p align="center">
-  <img src="readme/assets/workflow.svg" alt="Prepare in game, apply on disk — review changes and back up files" width="1000">
+  <img src="docs/assets/workflow.svg" alt="Prepare in game, apply on disk — review changes and back up files" width="1000">
 </p>
 
 ## Backups and applying changes
@@ -248,7 +254,7 @@ Both interfaces support **English, French, German, European and Latin American S
 ---
 
 <p align="center">
-  <img src="readme/assets/commands.svg" alt="Commands — /svc in WoW and the companion launcher on your PC" width="1000">
+  <img src="docs/assets/commands.svg" alt="Commands — /svc in WoW and the companion launcher on your PC" width="1000">
 </p>
 
 ## Commands
@@ -285,11 +291,28 @@ node tests/browser/smoke.cjs
 ```
 
 `python tools/build.py --version v0.1.0` regenerates locales, client TOCs and textures,
-then creates addon and companion ZIPs in `output/`. Commit generated files together
-with their source changes. The addon archive contains only runtime Lua, all eight
-TOCs, TGA textures, `LICENSE` and `NOTICE`. The separate companion archive includes
-its Python scripts, browser UI, Windows launcher and addon installer; it requires
-Python 3.10+ and ships no user data or backups.
+then creates the addon ZIP in `output/`. Commit generated files together with their
+source changes. The addon archive contains only runtime Lua, all eight TOCs, TGA
+textures, `LICENSE` and `NOTICE`. Build the Windows companion separately with the
+command below. Source users run `python companion/app.py` directly; no launcher
+or separate Python source package is needed.
+
+The repository keeps the two applications separate:
+
+```text
+addon/             WoW Lua modules, client TOCs and runtime textures
+  Assets/          Textures loaded by WoW
+  locales/         Source catalogs used to generate addon/Locale.lua
+companion/         Python application and browser interface (web/)
+artwork/           Shared source artwork
+docs/              Changelog and README illustrations (assets/)
+tools/             Asset generation, packaging, validation and addon sync
+tests/             Addon, companion, HTTP and browser tests
+```
+
+`output/` contains generated packages and reports; `data/` contains local backups
+and preferences. Both are ignored by Git. Lua paths inside the installed addon
+remain unchanged: every addon package still extracts to `SVCleaner/`.
 
 To build the **Windows portable ZIP**, use Windows and a 64-bit x86 Python with
 Tcl/Tk (CI uses Python 3.12), preferably in a dedicated virtual environment:

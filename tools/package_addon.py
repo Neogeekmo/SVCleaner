@@ -6,21 +6,31 @@ from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
 ROOT = Path(__file__).resolve().parent.parent
+ADDON = ROOT / "addon"
 FLAVORS = {"Retail": "Mainline", "Classic": "Vanilla", "BCC": "TBC", "Wrath": "Wrath", "Cata": "Cata", "Mists": "Mists", "Camelot": "Camelot"}
 
 
 def runtime_files():
-    toc = ROOT / "SVCleaner.toc"
+    toc = ADDON / "SVCleaner.toc"
     modules = [line.strip() for line in toc.read_text(encoding="utf-8").splitlines() if line.strip() and not line.lstrip().startswith("#")]
-    paths = [toc] + [ROOT / module for module in modules] + [ROOT / "Assets" / "logo.tga", ROOT / "Assets" / "icons.tga", ROOT / "LICENSE", ROOT / "NOTICE"]
+    paths = [toc] + [ADDON / module for module in modules] + [ADDON / "Assets" / "logo.tga", ADDON / "Assets" / "icons.tga"]
     for path in paths:
-        if not path.is_file() or not path.resolve().is_relative_to(ROOT):
+        if not path.is_file() or not path.resolve().is_relative_to(ADDON):
             raise ValueError("Invalid runtime file: " + str(path))
+    paths += [ROOT / "LICENSE", ROOT / "NOTICE"]
     return paths
 
 
+def runtime_name(path):
+    """Installed addon paths are independent of the repository layout."""
+    path = Path(path)
+    if path in (ROOT / "LICENSE", ROOT / "NOTICE"):
+        return path.name
+    return path.relative_to(ADDON).as_posix()
+
+
 def flavor_tocs():
-    source = (ROOT / "SVCleaner.toc").read_text(encoding="utf-8")
+    source = (ADDON / "SVCleaner.toc").read_text(encoding="utf-8")
     result = {}
     for field, suffix in FLAVORS.items():
         match = re.search(r"^## Interface-" + field + r":\s*(.+)$", source, re.MULTILINE)
@@ -54,7 +64,7 @@ def build(output=None, version=None):
     output.parent.mkdir(parents=True, exist_ok=True)
     with ZipFile(output, "w", ZIP_DEFLATED) as archive:
         for path in runtime_files():
-            name = "SVCleaner/" + path.relative_to(ROOT).as_posix()
+            name = "SVCleaner/" + runtime_name(path)
             if path.suffix == ".toc":
                 archive.writestr(name, path.read_text(encoding="utf-8").replace("@project-version@", version))
             else:
@@ -64,30 +74,10 @@ def build(output=None, version=None):
     return output
 
 
-def build_companion(output=None, version=None):
-    """Bundle the Python companion and everything its addon installer needs."""
-    version = package_version(version)
-    output = Path(output or ROOT / "output" / f"SVCleaner-Companion-{version}.zip")
-    paths = runtime_files() + [ROOT / "companion" / name for name in ("app.py", "demo.py", "flavors.py", "i18n.py", "lua_data.py", "runtime.py", "service.py")]
-    paths += [ROOT / "companion" / "web" / name for name in ("index.html", "app.js", "i18n.js", "locales.json", "style.css", "logo.svg")]
-    paths += [ROOT / "tools" / "package_addon.py", ROOT / "Lancer-SVCleaner.cmd", ROOT / "README.md"]
-    output.parent.mkdir(parents=True, exist_ok=True)
-    with ZipFile(output, "w", ZIP_DEFLATED) as archive:
-        for path in paths:
-            content = path.read_bytes()
-            if path.suffix == ".toc":
-                content = content.replace(b"@project-version@", version.encode("ascii"))
-            archive.writestr("SVCleaner-Companion/" + path.relative_to(ROOT).as_posix(), content)
-        for filename, content in flavor_tocs().items():
-            archive.writestr("SVCleaner-Companion/" + filename, content.replace("@project-version@", version))
-    return output
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--version")
-    parser.add_argument("--companion", action="store_true", help="Build the separate Python companion archive")
     args = parser.parse_args()
     for filename, content in flavor_tocs().items():
-        (ROOT / filename).write_text(content, encoding="utf-8", newline="\n")
-    print((build_companion if args.companion else build)(version=args.version))
+        (ADDON / filename).write_text(content, encoding="utf-8", newline="\n")
+    print(build(version=args.version))
