@@ -83,8 +83,8 @@ delete that file to choose again. You can also specify a folder explicitly:
 
 The companion listens on **`127.0.0.1`** and opens your browser. Your data stays on
 your PC. Keep its console open; press **Ctrl+C** to stop the server and discard
-pending changes that have not been applied. `Lancer-SVCleaner.cmd` also launches
-the executable and keeps errors visible if startup fails.
+pending changes that have not been applied. To keep startup errors visible,
+open PowerShell in the extracted folder and run `.\SVCleaner.exe`.
 
 Backups and history are stored in **`data/` beside the executable**. Preserve this
 folder when updating; extract the new version into the same folder or copy your
@@ -310,8 +310,12 @@ and verifies backup/restore across a restart. Close WoW before running this full
 test; `--read-only` checks startup and HTTP assets while a game client is running.
 
 CI builds and tests this portable package on Windows. The tag release workflow
-attaches that tested ZIP to GitHub Releases alongside the Python source archive.
-Before a release, the ZIP is also available as the `companion-windows-x64` Actions artifact.
+publishes **only the tested Windows portable ZIP** as a GitHub release asset.
+GitHub also provides its automatic source archives (`Source code (zip)` and
+`Source code (tar.gz)`). The addon is published to CurseForge and Wago; the separate
+Python companion ZIP, packager metadata and checksum files stay out of public
+release assets. The portable ZIP and its checksum remain available in Actions artifacts.
+Before a release, use the `companion-windows-x64` Actions artifact.
 
 ## License
 

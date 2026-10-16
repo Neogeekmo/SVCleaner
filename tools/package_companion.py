@@ -11,32 +11,33 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 from package_addon import ROOT, build, package_version
 
-GUIDE = """SV Cleaner Companion — Windows 10/11 64 bits
+GUIDE = """SV Cleaner Companion — Windows 10/11 (64-bit)
 
-1. Extrayez tout le ZIP dans un dossier où vous pouvez écrire.
-2. Double-cliquez sur SVCleaner.exe (aucune installation de Python nécessaire).
-3. Au premier lancement, choisissez votre dossier WoW (_retail_, _classic_, etc.).
-   Le navigateur ouvre l'interface locale ; gardez la console ouverte.
-4. Fermez tous les clients WoW avant d'appliquer des changements.
+1. Extract the entire ZIP into a folder where you have write access.
+2. Double-click SVCleaner.exe. No Python installation is required.
+3. On first launch, choose your WoW client folder (_retail_, _classic_, etc.).
+   The local interface opens in your browser. Keep the console window open.
+4. Close all WoW clients before applying changes.
 
-Ctrl+C dans la console arrête le companion. Fermer l'onglet ne l'arrête pas.
-Les sauvegardes et l'historique restent dans data/ à côté de SVCleaner.exe.
-Conservez ce dossier lors d'une mise à jour. Ne lancez pas l'application dans le ZIP
-et gardez le dossier _internal avec l'exécutable. Aucun droit administrateur requis.
-Le dossier WoW choisi est mémorisé dans wow-path.txt ; supprimez ce fichier pour
-le choisir à nouveau. Ne partagez pas data/ ou wow-path.txt avec votre archive.
-L'interface suit la langue du navigateur. Le sélecteur de langue couvre les onze
-langues de WoW ; le choix est conservé dans data/preferences.json.
+Press Ctrl+C in the console to stop the companion. Closing the browser tab does
+not stop it. Backups and history are stored in data/ beside SVCleaner.exe.
+Keep this folder when updating. Do not run the application from inside the ZIP.
+Keep the _internal folder beside the executable. Administrator rights are not required.
+Your WoW folder selection is saved in wow-path.txt. Delete this file to choose again.
+Do not include data/ or wow-path.txt when sharing the application.
+The interface initially follows your browser language. Use the language selector
+to choose any of WoW's eleven languages. Your choice is saved in data/preferences.json.
 
-Options (depuis PowerShell dans ce dossier) :
-  .\\SVCleaner.exe --wow "D:\\Jeux\\World of Warcraft\\_retail_"
+Options (run from PowerShell in this folder):
+  .\\SVCleaner.exe --wow "D:\\Games\\World of Warcraft\\_retail_"
   .\\SVCleaner.exe --demo
   .\\SVCleaner.exe --language enUS
   .\\SVCleaner.exe --help
-Pour un diagnostic, Lancer-SVCleaner.cmd garde les erreurs visibles.
+For troubleshooting, open PowerShell in this folder and run .\\SVCleaner.exe
+to keep startup errors visible.
 
-Code source et documentation : https://github.com/Neogeekmo/SVCleaner
-LICENSE et NOTICE concernent SV Cleaner ; licenses/ contient les notices du runtime.
+Source code and documentation: https://github.com/Neogeekmo/SVCleaner
+LICENSE and NOTICE cover SV Cleaner. Runtime license notices are in licenses/.
 """
 
 
@@ -70,9 +71,9 @@ def build_portable(output=None, version=None):
             str(ROOT / "companion" / "app.py"),
         ], cwd=ROOT, check=True)
         bundle = staging / "dist" / "SVCleaner"
-        for name in ("LICENSE", "NOTICE", "Lancer-SVCleaner.cmd"):
+        for name in ("LICENSE", "NOTICE"):
             shutil.copy2(ROOT / name, bundle / name)
-        (bundle / "LIRE-MOI.txt").write_text(GUIDE, encoding="utf-8")
+        (bundle / "README.txt").write_text(GUIDE, encoding="utf-8")
         (bundle / "VERSION.txt").write_text(version + "\n", encoding="ascii")
         licenses = bundle / "licenses"
         licenses.mkdir()

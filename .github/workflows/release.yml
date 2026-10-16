@@ -70,10 +70,6 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: python tools/verify_archive.py .release/*.zip --version "$RELEASE_TAG"
-      - name: Build the Python companion release
-        env:
-          RELEASE_TAG: ${{ github.ref_name }}
-        run: python tools/package_addon.py --companion --version "$RELEASE_TAG"
       - name: Retrieve the tested Windows portable companion
         uses: actions/download-artifact@v8.0.2
         with:
@@ -81,27 +77,34 @@ jobs:
           path: output
       # -c skips copying; -o keeps the already validated runtime folder.
       # Both are required when archiving that folder again for publication.
-      - name: Publish the validated addon
+      # GitHub assets are published separately; keep the addon on CF and Wago.
+      - name: Publish the validated addon to CurseForge and Wago
         uses: BigWigsMods/packager@v2.6.1
         env:
           CF_API_KEY: ${{ secrets.CF_API_KEY }}
           WAGO_API_TOKEN: ${{ secrets.WAGO_API_TOKEN }}
-          GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_OAUTH: ''
+          GITHUB_API_TOKEN: ''
         with:
           args: -c -o -e -l -u
           pandoc: 'false'
-      - name: Attach the companion and checksums to GitHub
+      - name: Publish the portable companion on GitHub
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          python - <<'PY'
-          import hashlib
-          from pathlib import Path
-          paths = sorted(Path('.release').glob('*.zip')) + sorted(Path('output').glob('SVCleaner-Companion-*.zip'))
-          Path('output/SHA256SUMS.txt').write_text(''.join(f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n' for p in paths), encoding='utf-8')
-          PY
-          gh release upload "$RELEASE_TAG" output/SVCleaner-Companion-*.zip output/SHA256SUMS.txt --clobber
+          archive="output/SVCleaner-Companion-${RELEASE_TAG}-windows-x64.zip"
+          test -f "$archive"
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "$archive" --clobber
+          else
+            options=()
+            case "$RELEASE_TAG" in
+              *-alpha.*|*-beta.*) options+=(--prerelease) ;;
+            esac
+            gh release create "$RELEASE_TAG" "$archive" --verify-tag \
+              --title "$RELEASE_TAG" --notes-file docs/changelog.md "${options[@]}"
+          fi
       - name: Keep release archives even if an upload fails
         if: always()
         uses: actions/upload-artifact@v7.0.2
@@ -109,9 +112,8 @@ jobs:
           name: release-packages
           path: |
             .release/*.zip
-            .release/release.json
-            output/SVCleaner-Companion-*.zip
-            output/SHA256SUMS.txt
+            output/SVCleaner-Companion-*-windows-x64.zip
+            output/SVCleaner-Companion-*-windows-x64.zip.sha256
           include-hidden-files: true
           if-no-files-found: warn
           retention-days: 30

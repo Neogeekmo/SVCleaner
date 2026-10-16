@@ -22,7 +22,7 @@ def verify(archive_path, read_only=False):
         bundle = directory / "SVCleaner-Companion"
         executable = bundle / "SVCleaner.exe"
         assert executable.read_bytes()[:2] == b"MZ", "Expected a Windows executable"
-        for name in ("_internal/companion/web/index.html", "_internal/companion/web/i18n.js", "_internal/companion/web/locales.json", "_internal/_tcl_data/init.tcl", "_internal/_tk_data/tk.tcl", "licenses/Python.txt", "licenses/Tcl-Tk.txt"):
+        for name in ("README.txt", "_internal/companion/web/index.html", "_internal/companion/web/i18n.js", "_internal/companion/web/locales.json", "_internal/_tcl_data/init.tcl", "_internal/_tk_data/tk.tcl", "licenses/Python.txt", "licenses/Tcl-Tk.txt"):
             assert (bundle / name).is_file(), f"Missing resource: {name}"
         root = directory / "WoW fictif" / "_retail_"
         (root / "Interface" / "AddOns").mkdir(parents=True)
