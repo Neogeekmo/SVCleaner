@@ -116,8 +116,10 @@ class PackageTests(unittest.TestCase):
             with patch.object(sys, "frozen", True, create=True), patch.object(sys, "_MEIPASS", str(resources), create=True), patch.object(sys, "executable", str(home / "SVCleaner.exe")):
                 runtime = runpy.run_path(str(ROOT / "companion" / "runtime.py"))
             self.assertEqual(runtime["PROJECT"], resources)
-            self.assertEqual(runtime["HOME"], home)
-            self.assertEqual(runtime["DATA"], home / "data")
+            # Windows runners may expose TEMP through an 8.3 alias (RUNNER~1).
+            # The executable's resolved location uses the full directory name.
+            self.assertEqual(runtime["HOME"], home.resolve())
+            self.assertEqual(runtime["DATA"], home.resolve() / "data")
 
     def test_portable_remembers_valid_wow_path_and_ignores_corrupt_settings(self):
         from app import preferred_wow
