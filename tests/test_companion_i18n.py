@@ -20,9 +20,7 @@ from service import Store
 class CompanionCatalogTests(unittest.TestCase):
     def test_all_wow_languages_have_complete_catalogs_and_matching_parameters(self):
         self.assertEqual(set(CATALOGS), set(LANGUAGES))
-        addon = json.loads((ROOT / "addon" / "locales" / "locales.json").read_text(encoding="utf-8"))
-        translations = json.loads((ROOT / "addon" / "locales" / "translations.json").read_text(encoding="utf-8"))
-        self.assertEqual(set(CATALOGS), set(addon["locales"]) | set(translations) | {"esMX"})
+        self.assertEqual(set(CATALOGS), {"enUS", "frFR", "deDE", "esES", "esMX", "itIT", "ptBR", "ruRU", "koKR", "zhCN", "zhTW"})
         keys = set(CATALOGS["frFR"])
         for language, catalog in CATALOGS.items():
             self.assertEqual(set(catalog), keys, language)

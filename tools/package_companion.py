@@ -56,7 +56,7 @@ def build_portable(output=None, version=None):
     cache.mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="portable-", dir=cache) as temporary:
         staging = Path(temporary)
-        # Reuse the addon allowlist, generated TOCs and version stamping.
+        # Reuse the addon allowlist, multi-client TOC and version stamping.
         with ZipFile(build(staging / "addon.zip", version)) as archive:
             archive.extractall(staging / "resources")
         addon = staging / "resources" / "SVCleaner"

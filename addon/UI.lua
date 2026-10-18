@@ -323,7 +323,7 @@ function SVC:CreateUI()
     local logo=header:CreateTexture(nil,"ARTWORK"); logo:SetTexture("Interface\\AddOns\\SVCleaner\\Assets\\logo.tga"); logo:SetSize(40,40); logo:SetPoint("TOPLEFT",16,-10)
     local brand=UI:Text(header,"SV Cleaner",22,"accent"); brand:SetPoint("TOPLEFT",66,-12)
     local tagline=UI:Text(header,L.TAGLINE,11,"muted"); tagline:SetPoint("TOPLEFT",66,-39)
-    local theme=UI:Button(header,L.THEME,140,function() SVCleanerDB.theme=SVCleanerDB.theme=="dark" and "light" or "dark"; UI:Theme(); self:ShowPage(self.activePage or "data") end); theme:SetPoint("TOPRIGHT",-66,-16)
+    self.themeButton=UI:IconButton(header,8,L.THEME,function() SVCleanerDB.theme=SVCleanerDB.theme=="dark" and "light" or "dark"; UI:Theme(); self:ShowPage(self.activePage or "data") end); self.themeButton:SetPoint("TOPRIGHT",-56,-16)
     local close=UI:IconButton(header,3,L.CLOSE,function() frame:Hide() end); close:SetPoint("TOPRIGHT",-20,-16)
     self.tabs={}; local x=16
     for _,def in ipairs({{"data",L.DATA},{"cvars",L.CVARS},{"requests",L.REQUESTS},{"guide",L.CACHES}}) do
@@ -388,7 +388,12 @@ function SVC:CreateUI()
     self:CreateDiff()
     self.status=UI:Text(frame,L.LOADED_ONLY,11,"muted"); self.status:SetPoint("BOTTOMLEFT",16,14); self.status:SetPoint("BOTTOMRIGHT",-510,14); self.status:SetHeight(30)
     local refresh=UI:Button(frame,L.REFRESH,126,function() self:Discover(); self:Refresh(); if self.activePage=="compare" then self:RefreshDiff() elseif self.activePage=="cvars" then self:DiscoverCVars() end end); refresh:SetPoint("BOTTOMRIGHT",-20,14)
-    local clear=UI:Button(frame,L.CLEAR,140,function() self.pending={}; SVCleanerDB.requests=self.pending; self:Refresh(); if self.activePage=="requests" then self:ShowPage("requests") elseif self.activePage=="cvars" then self:RefreshCVars() end end); clear:SetPoint("BOTTOMRIGHT",-154,14)
+    local clear=UI:Button(frame,L.CLEAR,140,function()
+        self.pending={}; SVCleanerDB.requests=self.pending; self:Refresh()
+        if self.activePage=="requests" then self:ShowPage("requests")
+        elseif self.activePage=="cvars" then self:RefreshCVars()
+        elseif self.activePage=="compare" then self:RefreshDiff() end
+    end); clear:SetPoint("BOTTOMRIGHT",-154,14)
     self.reloadButton=UI:Button(frame,L.APPLY_RELOAD,200,function() self:PrepareReload() end); self.reloadButton:SetPoint("BOTTOMRIGHT",-302,14)
     local grip=UI:IconButton(frame,4,L.RESIZE,function() end); grip:SetPoint("BOTTOMRIGHT",-1,1); grip:SetSize(16,16)
     grip:SetScript("OnMouseDown",function(_,key) if key=="LeftButton" then frame:StartSizing("BOTTOMRIGHT") end end)
@@ -416,6 +421,7 @@ function SVC:CreateUI()
     self:Layout(); self:ShowPage("data"); frame:Hide(); self.uiReady=true
 end
 function SVC:Toggle()
+    if not self.databaseReady then print("SVCleaner: "..L.DATABASE_UNSUPPORTED); return end
     if InCombatLockdown() then print("SVCleaner: "..L.OUT_COMBAT); return end
     if not self.frame then self:CreateUI() end
     if self.frame:IsShown() then self.frame:Hide(); return end

@@ -53,7 +53,7 @@ function UI:Button(parent,text,width,callback,role)
 end
 function UI:Icon(parent,id,size)
     local icon=parent:CreateTexture(nil,"ARTWORK"); icon:SetSize(size or 16,size or 16)
-    icon:SetTexture("Interface\\AddOns\\SVCleaner\\Assets\\icons.tga"); icon:SetTexCoord(id/8,(id+1)/8,0,1)
+    icon:SetTexture("Interface\\AddOns\\SVCleaner\\Assets\\icons.tga"); icon:SetTexCoord(id/16,(id+1)/16,0,1)
     self:Color(icon,"text","vertex")
     return icon
 end

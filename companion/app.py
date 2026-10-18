@@ -176,20 +176,15 @@ def install(store, language=None):
         print(message("Addon installé dans {target}", target=str(target)).render(language or system_language()))
         return
     sys.path.insert(0, str(PROJECT / "tools"))
-    from package_addon import flavor_tocs, package_version, runtime_files, runtime_name
-    version = package_version()
+    from package_addon import runtime_payload
+    payload = runtime_payload()
     target.mkdir()
-    for source in runtime_files():
-        if source.name == "Manifest.lua":
+    for name, content in payload.items():
+        if name == "Manifest.lua":
             continue  # Generate a manifest for the selected installation below.
-        destination = target / runtime_name(source)
+        destination = target / name
         destination.parent.mkdir(parents=True, exist_ok=True)
-        if source.suffix == ".toc":
-            destination.write_text(source.read_text(encoding="utf-8").replace("@project-version@", version), encoding="utf-8")
-        else:
-            shutil.copy2(source, destination)
-    for filename, content in flavor_tocs().items():
-        (target / filename).write_text(content.replace("@project-version@", version), encoding="utf-8")
+        destination.write_bytes(content)
     store.manifest(target / "Manifest.lua")
     print(message("Addon installé dans {target}", target=str(target)).render(language or system_language()))
 

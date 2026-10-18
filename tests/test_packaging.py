@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "companion"))
 sys.path.insert(0, str(ROOT / "tools"))
 from flavors import detect_client, toc_candidates
-from package_addon import ADDON, build, flavor_tocs, runtime_files, runtime_name
+from package_addon import ADDON, LEGACY_TOC_NAMES, build, runtime_files, runtime_name
 from verify_archive import verify
 from service import Store
 
@@ -57,6 +57,45 @@ class ClientTests(unittest.TestCase):
 
 
 class PackageTests(unittest.TestCase):
+    def test_validator_rejects_missing_interfaces_and_altered_runtime(self):
+        with tempfile.TemporaryDirectory(prefix="svc-contract-") as temporary:
+            directory = Path(temporary)
+            original = build(directory / "original.zip", version="v1.2.3")
+            for filename in ("SVCleaner/SVCleaner.toc", "SVCleaner/Requests.lua"):
+                with self.subTest(filename=filename):
+                    altered = directory / "altered.zip"
+                    with ZipFile(original) as source, ZipFile(altered, "w") as target:
+                        for name in source.namelist():
+                            content = source.read(name)
+                            if name == filename:
+                                content = content.replace(b", 38001, 38002", b"") if name.endswith(".toc") else content + b"\n-- unexpected change\n"
+                            target.writestr(name, content)
+                    with self.assertRaises(ValueError):
+                        verify(altered, version="v1.2.3")
+
+    def test_sync_backs_up_and_retires_legacy_tocs_preserving_manifest(self):
+        from sync_addon import sync
+        with tempfile.TemporaryDirectory(prefix="svc-sync-") as temporary:
+            directory = Path(temporary)
+            client = directory / "_retail_"
+            addons = client / "Interface" / "AddOns"
+            with ZipFile(build(directory / "addon.zip")) as archive:
+                archive.extractall(addons)
+            target = addons / "SVCleaner"
+            manifest = b"-- installation-specific manifest\n"
+            (target / "Manifest.lua").write_bytes(manifest)
+            for name in LEGACY_TOC_NAMES:
+                (target / name).write_text("old client module order", encoding="utf-8")
+            with patch("sync_addon.ROOT", directory):
+                report = sync(client)
+            self.assertEqual(set(report["removed"]), set(LEGACY_TOC_NAMES))
+            self.assertEqual([p.name for p in target.glob("*.toc")], ["SVCleaner.toc"])
+            self.assertEqual((target / "Manifest.lua").read_bytes(), manifest)
+            with ZipFile(report["backup"]) as backup:
+                for name in LEGACY_TOC_NAMES:
+                    self.assertEqual(backup.read("SVCleaner/" + name), b"old client module order")
+            self.assertEqual({p.relative_to(target).as_posix() for p in target.rglob("*") if p.is_file()}, {runtime_name(p) for p in runtime_files()})
+
     def test_release_version_and_distribution_ids_in_every_toc(self):
         with tempfile.TemporaryDirectory(prefix="svc-release-") as temporary:
             archive_path = build(Path(temporary) / "addon.zip", version="v1.2.3-beta.1")
@@ -114,7 +153,7 @@ class PackageTests(unittest.TestCase):
             subprocess.run([sys.executable, "-c", driver] + command[1:] + ["--install-addon"], cwd=directory, capture_output=True, text=True, check=True, timeout=30)
             installed = root / "Interface" / "AddOns" / "SVCleaner"
             self.assertIn("## Version: dev", (installed / "SVCleaner.toc").read_text(encoding="utf-8"))
-            self.assertEqual({p.relative_to(installed).as_posix() for p in installed.rglob("*") if p.is_file()}, {runtime_name(p) for p in runtime_files()} | set(flavor_tocs()))
+            self.assertEqual({p.relative_to(installed).as_posix() for p in installed.rglob("*") if p.is_file()}, {runtime_name(p) for p in runtime_files()})
 
     def test_frozen_paths_keep_resources_and_persistent_data_separate(self):
         with tempfile.TemporaryDirectory(prefix="svc-paths-") as temporary:
@@ -182,24 +221,24 @@ class PackageTests(unittest.TestCase):
             for toc in installed.glob("*.toc"):
                 self.assertIn("## Version: v1.2.3", toc.read_text(encoding="utf-8"))
             self.assertIn("SVC.Manifest", (installed / "Manifest.lua").read_text())
-            self.assertEqual({p.relative_to(installed).as_posix() for p in installed.rglob("*") if p.is_file()}, {runtime_name(p) for p in runtime_files()} | set(flavor_tocs()))
+            self.assertEqual({p.relative_to(installed).as_posix() for p in installed.rglob("*") if p.is_file()}, {runtime_name(p) for p in runtime_files()})
 
-    def test_archive_contains_only_runtime_and_all_flavor_tocs(self):
+    def test_archive_contains_only_runtime_and_one_multi_client_toc(self):
         with tempfile.TemporaryDirectory(prefix="svc-package-") as temporary:
             with ZipFile(build(Path(temporary) / "addon.zip")) as archive:
                 expected = {"SVCleaner/" + runtime_name(path) for path in runtime_files()}
-                expected.update("SVCleaner/" + name for name in flavor_tocs())
                 self.assertEqual(set(archive.namelist()), expected)
                 for name in archive.namelist():
                     if name.endswith(".toc"):
                         toc = archive.read(name).decode("utf-8")
                         modules = [line for line in toc.splitlines() if line and not line.startswith("#")]
-                        self.assertEqual(modules, ["Compat.lua", "Locale.lua", "Manifest.lua", "Core.lua", "Widgets.lua", "Compare.lua", "UI.lua"])
+                        locales = ["locales/" + language + ".lua" for language in ("enUS", "frFR", "deDE", "esES", "itIT", "ptBR", "ruRU", "koKR", "zhCN", "zhTW", "esMX")]
+                        self.assertEqual(modules, ["Compat.lua"] + locales + ["Locale.lua", "Manifest.lua", "Data.lua", "Database.lua", "Discovery.lua", "CVars.lua", "Requests.lua", "Minimap.lua", "Core.lua", "Widgets.lua", "Compare.lua", "UI.lua"])
                         for module in modules:
                             self.assertIn("SVCleaner/" + module, expected)
                         self.assertIn("## SavedVariables: SVCleanerDB", toc)
                         self.assertIn("Assets\\logo.tga", toc)
-                self.assertEqual(len(flavor_tocs()), 7)
+                self.assertEqual([name for name in archive.namelist() if name.endswith(".toc")], ["SVCleaner/SVCleaner.toc"])
 
     def test_install_copies_only_runtime_and_generates_client_manifest(self):
         from app import install
@@ -210,7 +249,7 @@ class PackageTests(unittest.TestCase):
             with patch("app.check_game_closed"):
                 install(store)
             target = root / "Interface" / "AddOns" / "SVCleaner"
-            expected = {runtime_name(path) for path in runtime_files()} | set(flavor_tocs())
+            expected = {runtime_name(path) for path in runtime_files()}
             self.assertEqual({p.relative_to(target).as_posix() for p in target.rglob("*") if p.is_file()}, expected)
             self.assertIn("SVC.Manifest", (target / "Manifest.lua").read_text())
             for toc in target.glob("*.toc"):

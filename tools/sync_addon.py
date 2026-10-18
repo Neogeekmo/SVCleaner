@@ -4,12 +4,11 @@ This never reads or writes WTF or SavedVariables. Restart WoW to load new TOCs.
 """
 import argparse
 import json
-import shutil
 from datetime import datetime
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
-from package_addon import ROOT, runtime_files, runtime_name, flavor_tocs, package_version
+from package_addon import ROOT, LEGACY_TOC_NAMES, runtime_payload
 
 
 def sync(client):
@@ -20,10 +19,9 @@ def sync(client):
     toc=(target/"SVCleaner.toc").read_text(encoding="utf-8-sig")
     if "## Title: SVCleaner" not in toc or "## SavedVariables: SVCleanerDB" not in toc:
         raise ValueError("This is not the expected SVCleaner installation")
-    paths=[path for path in runtime_files() if path.name!="Manifest.lua"]
-    variants=flavor_tocs()
-    version=package_version()
-    relative=[Path(runtime_name(path)) for path in paths]+[Path(name) for name in variants]
+    payload=runtime_payload()
+    del payload["Manifest.lua"]
+    relative=[Path(name) for name in payload]+[Path(name) for name in LEGACY_TOC_NAMES]
     for name in relative:
         if not (target/name).resolve().is_relative_to(target):
             raise ValueError("Runtime path escaped addon folder")
@@ -33,15 +31,16 @@ def sync(client):
         for name in relative:
             source=target/name
             if source.is_file(): archive.write(source,"SVCleaner/"+name.as_posix())
-    for path in paths:
-        destination=target/Path(runtime_name(path)); destination.parent.mkdir(parents=True,exist_ok=True)
-        if path.suffix == ".toc":
-            destination.write_text(path.read_text(encoding="utf-8").replace("@project-version@", version), encoding="utf-8")
-        else:
-            shutil.copy2(path,destination)
-    for name,content in variants.items():
-        (target/name).write_text(content.replace("@project-version@", version),encoding="utf-8")
-    report={"target":str(target),"backup":str(backup),"manifestPreserved":True,"copied":[name.as_posix() for name in relative]}
+    for name,content in payload.items():
+        destination=target/name; destination.parent.mkdir(parents=True,exist_ok=True)
+        destination.write_bytes(content)
+    removed=[]
+    for name in LEGACY_TOC_NAMES:
+        obsolete=target/name
+        if obsolete.is_file():
+            obsolete.unlink()
+            removed.append(name)
+    report={"target":str(target),"backup":str(backup),"manifestPreserved":True,"copied":list(payload),"removed":removed}
     (ROOT/"output"/"addon-sync.json").write_text(json.dumps(report,indent=2),encoding="utf-8")
     print(json.dumps(report,ensure_ascii=True))
     return report

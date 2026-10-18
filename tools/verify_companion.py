@@ -50,7 +50,10 @@ def verify(archive_path, read_only=False):
             version = (bundle / "VERSION.txt").read_text().strip()
             for toc in installed.glob("*.toc"):
                 assert f"## Version: {version}" in toc.read_text(encoding="utf-8")
-            assert len(list(installed.glob("*.toc"))) == 8
+            assert [path.name for path in installed.glob("*.toc")] == ["SVCleaner.toc"]
+            toc = (installed / "SVCleaner.toc").read_text(encoding="utf-8")
+            for module in (line.strip() for line in toc.splitlines() if line.strip() and not line.startswith("#")):
+                assert (installed / module).is_file(), f"Missing addon module: {module}"
             assert "SVC.Manifest" in (installed / "Manifest.lua").read_text()
         opener = build_opener(ProxyHandler({}))
 

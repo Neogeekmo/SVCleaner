@@ -63,9 +63,99 @@ class AddonTests(unittest.TestCase):
                 ["B-Player-1-BBB"] = {GUID = "Player-1-BBB", route = {step = 16, enabled = true}}
             }
         ''')
-        for filename in ("Compat.lua", "Locale.lua", "Manifest.lua", "Core.lua", "Widgets.lua", "Compare.lua"):
+        modules = [line.strip() for line in (ROOT / "SVCleaner.toc").read_text(encoding="utf-8").splitlines() if line.strip() and not line.startswith("#")]
+        for filename in modules:
+            if filename == "UI.lua":
+                continue
             self.lua.execute((ROOT / filename).read_text(encoding="utf-8"), "SVCleaner", self.lua.globals().SVC)
         self.lua.execute('eventsFrame = lastFrame; eventsFrame.OnEvent(eventsFrame, "ADDON_LOADED", "SVCleaner"); eventsFrame.OnEvent(eventsFrame, "PLAYER_LOGIN")')
+
+    def test_database_migrations_preserve_requests_settings_and_history(self):
+        self.lua.execute('''
+            for _,schema in ipairs({0,1,2}) do
+                local request={value=false,expectedSnapshot={enabled=false},verify=true,status="awaiting-reload"}
+                local db={schema=schema,requests={request},characters={known={name="A"}},theme="light",
+                    geometry={width=1400,height=900},minimap={angle=123},lastApplication={{status="verified"}},custom="keep"}
+                if schema==0 then db.schema=nil end
+                SVCleanerDB=db
+                assert(SVC:InitializeDatabase())
+                assert(SVCleanerDB==db and db.schema==2 and SVC.pending==db.requests)
+                assert(db.requests[1]==request and request.value==false and request.expectedSnapshot.enabled==false and request.verify)
+                assert(db.theme=="light" and db.geometry.width==1400 and db.minimap.angle==123)
+                assert(db.characters.known.name=="A" and db.lastApplication[1].status=="verified" and db.custom=="keep")
+                assert(SVC:InitializeDatabase() and db.requests[1]==request)
+            end
+            SVCleanerDB=nil
+            assert(SVC:InitializeDatabase() and SVCleanerDB.schema==2 and #SVC.pending==0)
+        ''')
+
+    def test_unsupported_database_is_preserved_and_cannot_open_ui(self):
+        self.lua.execute((ROOT / "UI.lua").read_text(encoding="utf-8"), "SVCleaner", self.lua.globals().SVC)
+        self.lua.execute('''
+            for _,db in ipairs({{schema=99,requests={"future"}}, {schema=-1}, {schema=1.5},
+                {schema="1"}, {schema=1,requests="invalid"}, "invalid"}) do
+                SVCleanerDB=db
+                eventsFrame.OnEvent(eventsFrame,"ADDON_LOADED","SVCleaner")
+                assert(not SVC.databaseReady and SVCleanerDB==db)
+                eventsFrame.OnEvent(eventsFrame,"PLAYER_LOGIN")
+                eventsFrame.OnEvent(eventsFrame,"PLAYER_LOGOUT")
+                SVC:Toggle(); assert(not SVC.frame)
+            end
+        ''')
+
+    def test_estimation_yields_within_one_database_and_cancels_old_scan(self):
+        self.lua.execute('''
+            APRData={}; for i=1,6000 do APRData[i]={enabled=false,step=i} end
+            local expected,limited=SVC:Estimate(APRData)
+            local callbacks={}
+            C_Timer.After=function(_,f) callbacks[#callbacks+1]=f end
+            SVC:Discover()
+            local old; for _,row in ipairs(SVC.rows) do if row.root=="APRData" then old=row end end
+            assert(old and old.bytes==0 and #callbacks>0)
+            SVC:Discover()
+            local current; for _,row in ipairs(SVC.rows) do if row.root=="APRData" then current=row end end
+            local frames=0
+            while #callbacks>0 do frames=frames+1; assert(frames<1000); table.remove(callbacks,1)() end
+            assert(frames>10 and current.bytes==expected and current.truncated==limited)
+            assert(old.bytes==0)
+            local cycle={}; cycle.self=cycle
+            local _,truncated=SVC:Estimate(cycle); assert(truncated)
+        ''')
+
+    def test_estimation_handles_live_iteration_failure_without_breaking_scan(self):
+        self.lua.execute('''
+            local callbacks={}
+            C_Timer.After=function(_,f) callbacks[#callbacks+1]=f end
+            SVC.Estimate=function() coroutine.yield(); error("iteration invalidated by live data") end
+            SVC:Discover()
+            while #callbacks>0 do table.remove(callbacks,1)() end
+            local row; for _,r in ipairs(SVC.rows) do if r.root=="APRData" then row=r end end
+            assert(row and row.bytes==0 and row.truncated)
+        ''')
+
+    def test_comparison_search_reuses_results_and_refresh_reads_live_values(self):
+        self.open_ui()
+        self.lua.execute('''
+            local row; for _,r in ipairs(SVC.rows) do if r.root=="APRData" then row=r end end
+            SVC.left={row=row,path={"A-Player-1-AAA"}}; SVC.right={row=row,path={"B-Player-1-BBB"}}
+            local diff,choices=SVC.Diff,SVC.ComparisonChoices
+            local comparisons,pickers=0,0
+            SVC.Diff=function(self,...) comparisons=comparisons+1; return diff(self,...) end
+            SVC.ComparisonChoices=function(self,...) pickers=pickers+1; return choices(self,...) end
+            SVC:ShowDiff(); assert(comparisons==1 and pickers==2)
+            local flag; for _,r in ipairs(SVC.diffRows) do if r.path[#r.path]=="enabled" then flag=r end end
+            SVC:InspectDiff(flag)
+            for _,query in ipairs({"s","st","step"}) do
+                SVC.diffSearch:SetText(query); SVC.diffSearch.OnTextChanged(SVC.diffSearch,true)
+            end
+            assert(comparisons==1 and pickers==2 and #SVC.diffList.items==1)
+            assert(not SVC.diffItem and not SVC.copyLeft:IsEnabled())
+            assert(SVC.diffList.items[1].left==42)
+            APRData["A-Player-1-AAA"].route.step=55
+            SVC:Discover(); SVC:FilterDiff()
+            assert(comparisons==2 and SVC.diffList.items[1].left==55)
+            SVC:RefreshDiff(); assert(comparisons==3)
+        ''')
 
     def test_discovery_manifest_and_false_requests(self):
         self.lua.execute('''

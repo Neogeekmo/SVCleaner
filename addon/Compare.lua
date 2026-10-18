@@ -22,6 +22,7 @@ function SVC:ComparisonChoices(side)
 end
 function SVC:RefreshDiff()
     if not self.diffList then return end
+    self.diffGeneration=self.generation
     self.diffRows,self.diffItem={},nil; self.copyAllLeft:SetEnabled(false); self.copyAllRight:SetEnabled(false)
     self.leftPicker:SetOptions(self:ComparisonChoices("left"),self.left or ""); self.rightPicker:SetOptions(self:ComparisonChoices("right"),self.right or "")
     self.leftTitle:SetText(L.REFERENCE); self.rightTitle:SetText(L.COMPARE_WITH)
@@ -47,11 +48,30 @@ function SVC:RefreshDiff()
             end
         end
     end
-    local filtered={}; local query=self:Fold(self.diffQuery)
-    for _,row in ipairs(rows) do if self:Fold(text(row.path).." "..self:Preview(row.left).." "..self:Preview(row.right)):find(query,1,true) then filtered[#filtered+1]=row end end
-    self.diffList:SetItems(filtered,true)
+    for _,row in ipairs(rows) do row.searchText=self:Fold(text(row.path).." "..self:Preview(row.left).." "..self:Preview(row.right)) end
+    self:FilterDiff()
     local compatible=0; for _,row in ipairs(rows) do if row.copyable then compatible=compatible+1 end end
     self.copyAllLeft:SetEnabled(compatible>0 and not limited); self.copyAllRight:SetEnabled(compatible>0 and not limited)
+end
+-- Typing only filters the last comparison. Explicit refresh, changing either
+-- side, and preparing requests rebuild it from the live values.
+function SVC:FilterDiff()
+    if not self.diffList then return end
+    if self.diffGeneration~=self.generation then self:RefreshDiff(); return end
+    local filtered,visible={},false
+    local query=self:Fold(self.diffQuery)
+    for _,row in ipairs(self.diffRows or {}) do
+        if row.searchText:find(query,1,true) then
+            filtered[#filtered+1]=row
+            if row==self.diffItem then visible=true end
+        end
+    end
+    if not visible then
+        self.diffItem=nil; self.diffList.selected=nil
+        self.copyLeft:SetEnabled(false); self.copyRight:SetEnabled(false)
+        self.diffBefore:SetText(""); self.diffAfter:SetText("")
+    end
+    self.diffList:SetItems(filtered,true)
 end
 function SVC:InspectDiff(item)
     self.diffItem=item; self.diffList.selected=item; self.diffList:Render()
@@ -90,7 +110,7 @@ function SVC:CreateDiff()
     self.rightPicker=UI:Choice(self.diff,400,{},"",function(value) self.right=value~="" and value or nil; self:RefreshDiff() end)
     self.swap=UI:IconButton(self.diff,7,L.SWAP,function() self.left,self.right=self.right,self.left; self:RefreshDiff() end)
     self.diffTitle=UI:Text(self.diff,L.SELECT_TWO,12,"muted")
-    self.diffSearch=UI:Input(self.diff,340,"",function(query) self.diffQuery=query; self.diffList.offset=0; self:RefreshDiff() end); self.diffSearch.placeholder:SetText(L.FILTER_VALUES)
+    self.diffSearch=UI:Input(self.diff,340,"",function(query) self.diffQuery=query; self.diffList.offset=0; self:FilterDiff() end); self.diffSearch.placeholder:SetText(L.FILTER_VALUES)
     self.diffList=UI:Grid(self.diff,{{label=L.KEY,width=.28},{label=L.REFERENCE,width=.29,role="left"},{label=L.COMPARE_WITH,width=.29,role="right"},{label=L.STATUS,width=.14,role="muted"}},function(button,item)
         button.cells[1]:SetText(UI:Display(text(item.path)))
         for i,side in ipairs({"left","right"}) do

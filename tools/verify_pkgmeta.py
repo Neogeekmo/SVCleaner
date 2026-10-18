@@ -9,14 +9,14 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from package_addon import ROOT, runtime_files, runtime_name, flavor_tocs
+from package_addon import ROOT, runtime_files, runtime_name
 
 
 def main():
     output = (ROOT / "output" / "compatibility" / "packager").resolve()
     script = output / "release.sh"
     if not script.is_file():
-        raise SystemExit("Download https://raw.githubusercontent.com/BigWigsMods/packager/master/release.sh first")
+        raise SystemExit("Download https://raw.githubusercontent.com/BigWigsMods/packager/v2.6.1/release.sh first")
     output.mkdir(parents=True, exist_ok=True)
     checkout = Path(tempfile.mkdtemp(prefix="check-", dir=output)).resolve()
     # BigWigs can remove its own release directory; keep that target contained.
@@ -26,11 +26,9 @@ def main():
         target = checkout / path.relative_to(ROOT)
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(path, target)
-    for filename, content in flavor_tocs().items():
-        (checkout / "addon" / filename).write_text(content, encoding="utf-8")
     # Tracked canaries ensure the pkgmeta rules, rather than Git's untracked-file
     # exclusion, actually keep the companion, private data and masters out.
-    for filename in ("companion/private.py", "tools/build.py", "tests/check.py", "docs/notes.md", "docs/assets/banner.svg", "docs/assets/grid-preview.png", "data/private.original", "output/private.zip", "README.md", "dev.cmd", "artwork/logo.png", "addon/Assets/source.svg", "addon/Assets/source.png", "addon/locales/private.json", "debug.pyc", "pyproject.toml", "requirements-dev.txt", "requirements-packaging.txt", ".gitattributes", ".github/workflows/ci.yml", ".coverage", "coverage.xml", "htmlcov/index.html", ".venv/pyvenv.cfg", ".venv-packaging/pyvenv.cfg", ".ruff_cache/cache", "AGENTS.md"):
+    for filename in ("companion/private.py", "tools/build.py", "tests/check.py", "docs/notes.md", "docs/assets/banner.svg", "docs/assets/grid-preview.png", "data/private.original", "output/private.zip", "README.md", "dev.cmd", "artwork/logo.png", "addon/Assets/source.svg", "addon/Assets/source.png", "debug.pyc", "pyproject.toml", "requirements-dev.txt", "requirements-packaging.txt", ".gitattributes", ".github/workflows/ci.yml", ".coverage", "coverage.xml", "htmlcov/index.html", ".venv/pyvenv.cfg", ".venv-packaging/pyvenv.cfg", ".ruff_cache/cache", "AGENTS.md"):
         target = checkout / filename
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text("PACKAGING CANARY - synthetic, no user data", encoding="utf-8")
@@ -52,7 +50,7 @@ def main():
         raise SystemExit("Packager failed; inspect " + str(output / "build.log"))
     folder = checkout / ".release" / "SVCleaner"
     actual = {path.relative_to(folder).as_posix() for path in folder.rglob("*") if path.is_file()}
-    expected = {runtime_name(path) for path in runtime_files()} | set(flavor_tocs())
+    expected = {runtime_name(path) for path in runtime_files()}
     expected.update(actual & {"CHANGELOG.md"})
     report = {"checkout": str(checkout), "actual": sorted(actual), "expected": sorted(expected), "passed": actual == expected}
     (output / "result.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
@@ -70,13 +68,14 @@ def main():
         raise SystemExit("Publication pass changed or removed the validated runtime files")
     report["publication_passed"] = True
     (output / "result.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
-    for filename, content in flavor_tocs().items():
-        actual_toc = (folder / filename).read_text(encoding="utf-8")
-        # BigWigs may preserve flavor-specific directives; check the actual
-        # active Interface and module order instead of whitespace.
-        expected_interface = content.splitlines()[0]
-        if expected_interface not in actual_toc:
-            raise SystemExit("Incorrect client Interface in " + filename)
+    # Apply the same contract as local archives and CI to BigWigs' real output.
+    from zipfile import ZipFile, ZIP_DEFLATED
+    from verify_archive import verify
+    archive_path = output / "verified-addon.zip"
+    with ZipFile(archive_path, "w", ZIP_DEFLATED) as archive:
+        for name, content in published.items():
+            archive.writestr("SVCleaner/" + name, content)
+    verify(archive_path)
     print("BigWigs build and publication passes verified: " + str(len(actual)) + " unchanged runtime files, no companion, private data or PNG masters.")
 
 

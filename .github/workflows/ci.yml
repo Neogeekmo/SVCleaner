@@ -57,7 +57,7 @@ jobs:
         run: |
           npm ci --prefix tests/browser --no-audit --no-fund
           node tests/browser/smoke.cjs
-      - name: Verify generated locales, client TOCs and textures
+      - name: Verify generated textures
         run: python tools/build.py --check
       - name: Check all Lua files with Lua 5.1
         shell: python
@@ -66,7 +66,7 @@ jobs:
           from lupa.lua51 import LuaRuntime
           lua = LuaRuntime()
           compile_lua = lua.eval('function(source, name) local fn, err = loadstring(source, name); assert(fn, err) end')
-          for path in Path('addon').glob('*.lua'):
+          for path in Path('addon').rglob('*.lua'):
               compile_lua(path.read_text(encoding='utf-8'), str(path))
 
   tests:

@@ -1,4 +1,3 @@
-import json
 import re
 import unittest
 from pathlib import Path
@@ -14,19 +13,22 @@ ROOT = Path(__file__).resolve().parent.parent
 @unittest.skipIf(LuaRuntime is None, "Lua 5.1 unavailable")
 class LocaleTests(unittest.TestCase):
     def test_all_catalogs_have_matching_format_arguments_and_client_fonts(self):
-        data = json.loads((ROOT / "addon" / "locales" / "locales.json").read_text(encoding="utf-8"))
-        grid = json.loads((ROOT / "addon" / "locales" / "grid_locales.json").read_text(encoding="utf-8"))
-        data["keys"].extend(grid["keys"]); data["locales"]["enUS"].extend(grid["locales"]["enUS"])
-        keys = data["keys"]
-        for locale in ("enUS", "enGB", "frFR", "deDE", "esES", "esMX", "itIT", "ptBR", "ptPT", "ruRU", "koKR", "zhCN", "zhTW", "unknown"):
+        for locale in ("enUS", "frFR", "deDE", "esES", "esMX", "itIT", "ptBR", "ruRU", "koKR", "zhCN", "zhTW", "unknown"):
             with self.subTest(locale=locale):
                 lua=LuaRuntime(unpack_returned_tuples=True)
                 lua.globals().clientLocale=locale
                 lua.execute('SVC={}; STANDARD_TEXT_FONT="ClientLocalizedFont"; function GetLocale() return clientLocale end')
-                lua.execute((ROOT / "addon" / "Locale.lua").read_text(encoding="utf-8"), "SVCleaner",lua.globals().SVC)
+                modules = (ROOT / "addon" / "SVCleaner.toc").read_text(encoding="utf-8").splitlines()
+                for module in modules:
+                    if module.startswith("locales/") or module == "Locale.lua":
+                        lua.execute((ROOT / "addon" / module).read_text(encoding="utf-8"), "SVCleaner",lua.globals().SVC)
                 self.assertEqual(lua.globals().SVC.font,"ClientLocalizedFont")
                 catalog=lua.globals().SVC.L
-                for key,base in zip(keys,data["locales"]["enUS"]):
+                catalogs=lua.globals().SVC.Locales
+                base_catalog=dict(catalogs.enUS.items())
+                actual=catalogs[locale] if locale != "unknown" else catalogs.enUS
+                self.assertEqual(set(actual.keys()), set(base_catalog), locale)
+                for key,base in base_catalog.items():
                     translated=catalog[key]
                     self.assertTrue(translated)
                     self.assertEqual(re.findall(r"%[sd]",translated),re.findall(r"%[sd]",base),key)

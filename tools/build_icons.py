@@ -3,9 +3,9 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parent.parent
-image = Image.new("RGBA", (256, 32))
+image = Image.new("RGBA", (512, 32))
 d = ImageDraw.Draw(image)
-for i in range(8):
+for i in range(9):
     x = i * 32
     def line(points):
         d.line([(x + a, b) for a, b in points], fill="white", width=3)
@@ -22,4 +22,8 @@ for i in range(8):
     elif i == 7:
         line([(7, 10), (25, 10)]); line([(20, 5), (25, 10), (20, 15)])
         line([(25, 22), (7, 22)]); line([(12, 17), (7, 22), (12, 27)])
+    elif i == 8:
+        # Half-filled circle: theme toggle, tinted by the current UI palette.
+        d.pieslice((x+5, 5, x+27, 27), 90, 270, fill="white")
+        d.ellipse((x+5, 5, x+27, 27), outline="white", width=2)
 image.save(ROOT / "addon" / "Assets" / "icons.tga")

@@ -1,12 +1,4 @@
 ## Interface: 120000, 120001, 120005, 120007, 120100, 120105, 11509, 20506, 30403, 38001, 38002, 40402, 50504, 16001
-## Interface-Retail: 120000, 120001, 120005, 120007, 120100, 120105
-## Interface-Classic: 11509
-## Interface-BCC: 20506
-## Interface-Wrath: 30403
-## X-Interface-Titan: 38001, 38002
-## Interface-Cata: 40402
-## Interface-Mists: 50504
-## Interface-Camelot: 16001
 ## Title: SVCleaner
 ## Notes: Inspect SavedVariables, compare character data and prepare reversible cleanup.
 ## Notes-frFR: Inspecter les SavedVariables, comparer les personnages et préparer le nettoyage.
@@ -29,8 +21,25 @@
 ## AddonCompartmentFunc: SVCleaner_OnAddonCompartmentClick
 
 Compat.lua
+locales/enUS.lua
+locales/frFR.lua
+locales/deDE.lua
+locales/esES.lua
+locales/itIT.lua
+locales/ptBR.lua
+locales/ruRU.lua
+locales/koKR.lua
+locales/zhCN.lua
+locales/zhTW.lua
+locales/esMX.lua
 Locale.lua
 Manifest.lua
+Data.lua
+Database.lua
+Discovery.lua
+CVars.lua
+Requests.lua
+Minimap.lua
 Core.lua
 Widgets.lua
 Compare.lua

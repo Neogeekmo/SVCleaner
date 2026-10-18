@@ -235,21 +235,28 @@ Data **removed from active files** is different from physical disk space freed: 
 
 ## Compatibility and languages
 
-The shipped TOCs declare the following client families:
+One `SVCleaner.toc` declares all supported interfaces and loads the same modules on every client:
 
-| Family | Dedicated TOC |
+| Family | TOC |
 |---|---|
-| Retail | `SVCleaner_Mainline.toc` |
-| Classic Era / Hardcore | `SVCleaner_Vanilla.toc` |
-| TBC / Anniversary | `SVCleaner_TBC.toc` |
-| Wrath / Titan | `SVCleaner_Wrath.toc` |
-| Cataclysm | `SVCleaner_Cata.toc` |
-| Mists of Pandaria | `SVCleaner_Mists.toc` |
-| Forever / Camelot | `SVCleaner_Camelot.toc` |
+| Retail | `SVCleaner.toc` |
+| Classic Era / Hardcore | `SVCleaner.toc` |
+| TBC / Anniversary | `SVCleaner.toc` |
+| Wrath / Titan | `SVCleaner.toc` |
+| Cataclysm | `SVCleaner.toc` |
+| Mists of Pandaria | `SVCleaner.toc` |
+| Forever / Camelot | `SVCleaner.toc` |
 
 PTR and beta clients use their corresponding declared interfaces. The companion identifies the client family from the installation metadata; ambiguous clients remain marked as uncertain. Automated checks do not replace testing in each exact game client.
 
-Both interfaces support **English, French, German, European and Latin American Spanish, Italian, Brazilian Portuguese, Russian, Korean, Simplified Chinese, and Traditional Chinese**. The addon follows WoW's language; the companion has its own language selector. The `enGB` and `ptPT` aliases use the `enUS` and `ptBR` catalogs respectively.
+When updating manually from a release with separate client TOCs, replace the
+`Interface/AddOns/SVCleaner` folder rather than merging files: old suffixed TOCs
+must not remain. SavedVariables live separately in `WTF`. For a development
+installation, `python tools/sync_addon.py --wow "…"` backs up the files it changes,
+removes the seven obsolete TOCs and preserves the installation's `Manifest.lua`.
+Restart WoW after changing TOCs.
+
+Both interfaces support **English, French, German, European and Latin American Spanish, Italian, Brazilian Portuguese, Russian, Korean, Simplified Chinese, and Traditional Chinese**. The addon uses the language returned by WoW's `GetLocale()`; the companion has its own language selector.
 
 ---
 
@@ -290,19 +297,40 @@ npm ci --prefix tests/browser
 node tests/browser/smoke.cjs
 ```
 
-`python tools/build.py --version v0.1.0` regenerates locales, client TOCs and textures,
+Edit addon translations directly in `addon/locales/<language>.lua`, for example
+`frFR.lua` or `enUS.lua`. Each of the eleven languages has its own keyed Lua table.
+`addon/Locale.lua` uses WoW's `GetLocale()` directly and provides English fallback.
+The addon has no JSON translation sources or locale generation step. Keep the keys
+and format placeholders consistent across all eleven languages.
+
+`python tools/build.py --version v0.1.0` regenerates textures,
 then creates the addon ZIP in `output/`. Commit generated files together with their
-source changes. The addon archive contains only runtime Lua, all eight TOCs, TGA
+source changes. The addon archive contains only runtime Lua, one multi-client TOC, TGA
 textures, `LICENSE` and `NOTICE`. Build the Windows companion separately with the
 command below. Source users run `python companion/app.py` directly; no launcher
 or separate Python source package is needed.
 
+`addon/SVCleaner.toc` is the source of the module order and supported interface
+numbers. Keep `enable-toc-creation: no` in `.pkgmeta`: no client variants are
+needed. Local packaging, source installation and synchronization share the same
+runtime payload. CI checks BigWigs archives against that payload, including every
+declared interface and the actual Lua/assets, before publication.
+
+The addon separates data helpers (`Data.lua`), incremental estimates and discovery
+(`Discovery.lua`), saved-data migrations (`Database.lua`), CVars (`CVars.lua`),
+staged changes (`Requests.lua`) and the minimap button (`Minimap.lua`). `Core.lua`
+connects initialization and game events. Database migrations preserve queued
+requests and history; unsupported newer schemas are left untouched. Size estimates
+yield every 512 traversal steps and retain the existing depth/node limits. Comparison
+search filters the last result; changing either side or refreshing rereads live data.
+
 The repository keeps the two applications separate:
 
 ```text
-addon/             WoW Lua modules, client TOCs and runtime textures
+addon/             WoW Lua modules, one TOC and runtime textures
   Assets/          Textures loaded by WoW
-  locales/         Source catalogs used to generate addon/Locale.lua
+  locales/         One directly maintained Lua translation file per language
+  Locale.lua       WoW language selection and English fallback
 companion/         Python application and browser interface (web/)
 artwork/           Shared source artwork
 docs/              Changelog and README illustrations (assets/)

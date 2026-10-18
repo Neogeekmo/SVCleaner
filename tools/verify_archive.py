@@ -3,12 +3,12 @@ import argparse
 import re
 from zipfile import ZipFile
 
-from package_addon import flavor_tocs, runtime_files, runtime_name
+from package_addon import runtime_files, runtime_name, runtime_payload
 
 
 def verify(path, version=None):
     expected = {"SVCleaner/" + runtime_name(p) for p in runtime_files()}
-    expected.update("SVCleaner/" + name for name in flavor_tocs())
+    payload = runtime_payload(version)
     with ZipFile(path) as archive:
         files = [info.filename for info in archive.infolist() if not info.is_dir()]
         # BigWigs adds this file when .pkgmeta has no manual changelog.
@@ -25,6 +25,13 @@ def verify(path, version=None):
             if not data:
                 raise ValueError("Empty runtime file: " + name)
             if not name.endswith(".toc"):
+                source = payload.get(name.removeprefix("SVCleaner/"))
+                # BigWigs normalizes line endings; binary assets must match exactly.
+                if source is not None:
+                    actual = data.replace(b"\r\n", b"\n") if name.endswith(".lua") else data
+                    wanted = source.replace(b"\r\n", b"\n") if name.endswith(".lua") else source
+                    if actual != wanted:
+                        raise ValueError("Runtime content differs from source: " + name)
                 continue
             toc = data.decode("utf-8")
             loaded = [line.strip() for line in toc.splitlines() if line.strip() and not line.lstrip().startswith("#")]
@@ -37,10 +44,17 @@ def verify(path, version=None):
                     raise ValueError("Incorrect " + field + " in " + name)
             if version and not re.search(r"^## Version: " + re.escape(version) + r"$", toc, re.MULTILINE):
                 raise ValueError("Incorrect release version in " + name)
-            flavor = name.removeprefix("SVCleaner/")
-            if flavor in flavor_tocs() and flavor_tocs()[flavor].splitlines()[0] not in toc.splitlines():
-                raise ValueError("Incorrect client interface: " + name)
-    print(f"Verified {path}: {len(expected)} runtime files, all client TOCs, no development or private files.")
+            def interfaces(content):
+                values = re.findall(r"^## Interface:\s*([^\r\n]+)", content, re.MULTILINE)
+                if len(values) != 1:
+                    raise ValueError("Expected one Interface directive: " + name)
+                result = {value.strip() for value in values[0].split(",")}
+                if not all(value.isdecimal() for value in result):
+                    raise ValueError("Invalid interface number: " + name)
+                return result
+            if interfaces(toc) != interfaces(payload["SVCleaner.toc"].decode("utf-8")):
+                raise ValueError("Incorrect client interfaces: " + name)
+    print(f"Verified {path}: {len(expected)} runtime files, one multi-client TOC, no development or private files.")
 
 
 if __name__ == "__main__":
