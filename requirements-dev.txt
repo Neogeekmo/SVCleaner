@@ -1,6 +1,6 @@
 # The companion itself uses only the Python standard library.
 lupa==2.8
-Pillow==12.3.0
+Pillow==13.0.0
 # Python 3.10 needs the TOML extra to read pyproject.toml.
 coverage[toml]==7.16.2
-ruff==0.17.0
+ruff==0.17.1
