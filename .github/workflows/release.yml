@@ -44,7 +44,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-python@v7.0.0
+      - uses: actions/setup-python@v7.1.0
         with:
           python-version: '3.14'
       - name: Require both publication tokens
@@ -62,7 +62,7 @@ jobs:
           done
           exit "$missing"
       - name: Build release package without uploading
-        uses: BigWigsMods/packager@v2.6.1
+        uses: BigWigsMods/packager@v2.7.0
         with:
           args: -d -e -l -u
           pandoc: 'false'
@@ -79,7 +79,7 @@ jobs:
       # Both are required when archiving that folder again for publication.
       # GitHub assets are published separately; keep the addon on CF and Wago.
       - name: Publish the validated addon to CurseForge and Wago
-        uses: BigWigsMods/packager@v2.6.1
+        uses: BigWigsMods/packager@v2.7.0
         env:
           CF_API_KEY: ${{ secrets.CF_API_KEY }}
           WAGO_API_TOKEN: ${{ secrets.WAGO_API_TOKEN }}
