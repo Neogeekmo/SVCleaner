@@ -26,13 +26,13 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-python@v7.0.0
+      - uses: actions/setup-python@v7.1.0
         with:
           python-version: '3.14'
           cache: pip
           cache-dependency-path: requirements-dev.txt
       - run: python -m pip install -r requirements-dev.txt
-      - uses: actions/setup-node@v6.5.0
+      - uses: actions/setup-node@v7.1.0
         with:
           node-version: '24'
       - name: Validate GitHub Actions workflows with actionlint
@@ -82,7 +82,7 @@ jobs:
       - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-python@v7.0.0
+      - uses: actions/setup-python@v7.1.0
         with:
           python-version: ${{ matrix.python }}
           cache: pip
@@ -116,7 +116,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-python@v7.0.0
+      - uses: actions/setup-python@v7.1.0
         with:
           python-version: '3.12'
           architecture: x64
@@ -151,18 +151,18 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-python@v7.0.0 # v6
+      - uses: actions/setup-python@v7.1.0 # v6
         with:
           python-version: '3.14'
       - name: Package the addon without uploading
-        uses: BigWigsMods/packager@v2.6.1
+        uses: BigWigsMods/packager@v2.7.0
         with:
           args: -d -e -l -u
           pandoc: 'false'
       - name: Validate the actual BigWigs archive
         run: python tools/verify_archive.py .release/*.zip
       - name: Repackage the prepared addon with publication options (no upload)
-        uses: BigWigsMods/packager@v2.6.1
+        uses: BigWigsMods/packager@v2.7.0
         with:
           args: -d -c -o -e -l -u
           pandoc: 'false'
